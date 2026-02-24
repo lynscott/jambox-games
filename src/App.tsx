@@ -74,6 +74,7 @@ function App() {
 
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [poses, setPoses] = useState<PoseSample[]>([]);
+  const [beatPhase, setBeatPhase] = useState(0);
   const zoningStateRef = useRef(createInitialZoningState());
   const featureStateRef = useRef(createInitialFeatureState());
   const mappingStateRef = useRef(createInitialMappingState());
@@ -147,6 +148,20 @@ function App() {
     };
     setCalibrating(true);
   }, [calibrationRequestToken, isSessionRunning, setCalibrating]);
+
+  useEffect(() => {
+    let rafId = 0;
+
+    const tick = () => {
+      const nowSeconds = transportRef.current ? transportRef.current.now() : performance.now() / 1000;
+      const beatLength = 60 / bpm;
+      setBeatPhase((nowSeconds % beatLength) / beatLength);
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [bpm]);
 
   useEffect(() => {
     if (!isSessionRunning || !videoElement) {
@@ -373,24 +388,12 @@ function App() {
   ]);
 
   const drawOverlay = useMemo(
-    () => (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-      const zoneWidth = width / 3;
-
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(zoneWidth, 0);
-      ctx.lineTo(zoneWidth, height);
-      ctx.moveTo(zoneWidth * 2, 0);
-      ctx.lineTo(zoneWidth * 2, height);
-      ctx.stroke();
-
+    () => (ctx: CanvasRenderingContext2D, _width: number, _height: number) => {
       if (!showSkeleton) {
-        ctx.restore();
         return;
       }
 
+      ctx.save();
       poses.forEach((pose) => {
         const byName = new Map(pose.keypoints.map((point) => [point.name, point]));
         ctx.strokeStyle = 'rgba(16, 185, 129, 0.9)';
@@ -435,7 +438,7 @@ function App() {
       <h1>AI Garage Band</h1>
       <Controls onToggleSession={() => void handleToggleSession()} />
       <CameraView isRunning={isSessionRunning} onVideoElementChange={handleVideoElementChange}>
-        {(video) => <OverlayCanvas video={video} onDraw={drawOverlay} enabled={true} />}
+        {(video) => <OverlayCanvas video={video} onDraw={drawOverlay} enabled={true} beatPhase={beatPhase} />}
       </CameraView>
       <p className="status-text">Session: {isSessionRunning ? 'Running' : 'Stopped'}</p>
       <Diagnostics />
