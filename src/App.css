@@ -1,7 +1,7 @@
 :root {
   font-family: 'Avenir Next', 'Helvetica Neue', sans-serif;
   color: #111827;
-  background: linear-gradient(165deg, #fef3c7 0%, #bae6fd 48%, #fecdd3 100%);
+  background: radial-gradient(circle at 15% 20%, #fde68a 0%, #fca5a5 35%, #7dd3fc 100%);
 }
 
 body {
@@ -14,7 +14,7 @@ body {
 }
 
 .app-shell {
-  max-width: 960px;
+  max-width: 1040px;
   margin: 0 auto;
   padding: 1.5rem;
   display: grid;
@@ -42,6 +42,36 @@ body {
 .controls-panel select,
 .controls-panel button {
   min-height: 2rem;
+}
+
+.camera-view {
+  position: relative;
+  background: rgba(15, 23, 42, 0.65);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  min-height: 320px;
+}
+
+.camera-video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.overlay-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.camera-error {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: rgba(220, 38, 38, 0.85);
+  color: #fff;
+  font-weight: 600;
 }
 
 .status-text {
