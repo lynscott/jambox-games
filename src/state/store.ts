@@ -18,6 +18,7 @@ export interface AppState {
   diagnostics: AppDiagnostics;
   zoneFeatures: Record<ZoneId, ZoneFeatureSnapshot>;
   zoneOccupants: Record<ZoneId, ZoneOccupantSnapshot | null>;
+  calibrationLocks: Record<ZoneId, number | null>;
   setSessionRunning: (isRunning: boolean) => void;
   setCalibrating: (isCalibrating: boolean) => void;
   requestCalibration: () => void;
@@ -28,6 +29,7 @@ export interface AppState {
   setDiagnostics: (diagnostics: Partial<AppDiagnostics>) => void;
   setZoneFeature: (zone: ZoneId, feature: Partial<ZoneFeatureSnapshot>) => void;
   setZoneOccupants: (occupants: Record<ZoneId, ZoneOccupantSnapshot | null>) => void;
+  setCalibrationLocks: (locks: Record<ZoneId, number | null>) => void;
 }
 
 const DEFAULT_ZONE_FEATURE: ZoneFeatureSnapshot = {
@@ -67,6 +69,11 @@ export const createInitialState = () => ({
     middle: null,
     right: null,
   },
+  calibrationLocks: {
+    left: null,
+    middle: null,
+    right: null,
+  },
 });
 
 export const useAppStore = create<AppState>((set) => ({
@@ -95,4 +102,5 @@ export const useAppStore = create<AppState>((set) => ({
       },
     })),
   setZoneOccupants: (zoneOccupants) => set({ zoneOccupants }),
+  setCalibrationLocks: (calibrationLocks) => set({ calibrationLocks }),
 }));

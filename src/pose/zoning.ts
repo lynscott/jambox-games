@@ -22,6 +22,7 @@ export interface ZoningParams {
   width: number;
   now: number;
   state: ZoningState;
+  anchorX?: Record<ZoneId, number | null>;
   holdFrames?: number;
   switchMargin?: number;
   missingTimeoutMs?: number;
@@ -59,6 +60,7 @@ export function assignZones({
   width,
   now,
   state,
+  anchorX,
   holdFrames = 3,
   switchMargin = 0.12,
   missingTimeoutMs = 2000,
@@ -82,7 +84,21 @@ export function assignZones({
   };
 
   for (const zone of ZONES) {
-    const best = grouped[zone].sort((a, b) => b.score - a.score)[0] ?? null;
+    const candidates = grouped[zone];
+    const best =
+      candidates.length === 0
+        ? null
+        : anchorX?.[zone] !== null && anchorX?.[zone] !== undefined
+          ? candidates
+              .slice()
+              .sort((a, b) => {
+                const distDiff = Math.abs(a.centerX - (anchorX?.[zone] ?? 0)) - Math.abs(b.centerX - (anchorX?.[zone] ?? 0));
+                if (distDiff === 0) {
+                  return b.score - a.score;
+                }
+                return distDiff;
+              })[0]
+          : candidates.slice().sort((a, b) => b.score - a.score)[0];
     const current = state.occupants[zone];
 
     if (!best) {

@@ -17,6 +17,7 @@ export function Controls({ onToggleSession }: ControlsProps) {
   const quantization = useAppStore((state) => state.quantization);
   const showSkeleton = useAppStore((state) => state.showSkeleton);
   const conductorEnabled = useAppStore((state) => state.conductorEnabled);
+  const isCalibrating = useAppStore((state) => state.isCalibrating);
   const setBpm = useAppStore((state) => state.setBpm);
   const setQuantization = useAppStore((state) => state.setQuantization);
   const setShowSkeleton = useAppStore((state) => state.setShowSkeleton);
@@ -76,8 +77,8 @@ export function Controls({ onToggleSession }: ControlsProps) {
         />
       </label>
 
-      <button type="button" onClick={requestCalibration}>
-        Calibrate
+      <button type="button" onClick={requestCalibration} disabled={isCalibrating}>
+        {isCalibrating ? 'Calibrating...' : 'Calibrate'}
       </button>
     </section>
   );

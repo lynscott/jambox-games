@@ -3,10 +3,18 @@ import { CameraView } from './components/CameraView';
 import { Controls } from './components/Controls';
 import { Diagnostics } from './components/Diagnostics';
 import { OverlayCanvas } from './components/OverlayCanvas';
+import { createConductor } from './music/conductor';
+import { createInstruments, type GarageBandInstruments } from './music/instruments';
+import { createInitialMappingState, mapFeaturesToEvents } from './music/mapping';
+import {
+  createToneTransportController,
+  type TransportController,
+} from './music/transport';
 import { computeZoneFeatures, createInitialFeatureState } from './pose/features';
 import { loadMoveNet, type PoseSample } from './pose/movenet';
 import { assignZones, createInitialZoningState } from './pose/zoning';
 import { useAppStore } from './state/store';
+import type { ZoneId } from './types';
 import './App.css';
 
 const SKELETON_EDGES: Array<[string, string]> = [
@@ -24,6 +32,30 @@ const SKELETON_EDGES: Array<[string, string]> = [
   ['right_knee', 'right_ankle'],
 ];
 
+function zoneForX(centerX: number, width: number): ZoneId {
+  if (centerX < width / 3) {
+    return 'left';
+  }
+  if (centerX < (width * 2) / 3) {
+    return 'middle';
+  }
+  return 'right';
+}
+
+function hasRaisedHands(pose: PoseSample): boolean {
+  const byName = new Map(pose.keypoints.map((point) => [point.name, point]));
+  const leftWrist = byName.get('left_wrist');
+  const rightWrist = byName.get('right_wrist');
+  const leftShoulder = byName.get('left_shoulder');
+  const rightShoulder = byName.get('right_shoulder');
+
+  if (!leftWrist || !rightWrist || !leftShoulder || !rightShoulder) {
+    return false;
+  }
+
+  return leftWrist.y < leftShoulder.y && rightWrist.y < rightShoulder.y;
+}
+
 function App() {
   const isSessionRunning = useAppStore((state) => state.isSessionRunning);
   const setSessionRunning = useAppStore((state) => state.setSessionRunning);
@@ -31,11 +63,90 @@ function App() {
   const setDiagnostics = useAppStore((state) => state.setDiagnostics);
   const setZoneOccupants = useAppStore((state) => state.setZoneOccupants);
   const setZoneFeature = useAppStore((state) => state.setZoneFeature);
+  const bpm = useAppStore((state) => state.bpm);
+  const quantization = useAppStore((state) => state.quantization);
+  const conductorEnabled = useAppStore((state) => state.conductorEnabled);
+  const calibrationRequestToken = useAppStore((state) => state.calibrationRequestToken);
+  const isCalibrating = useAppStore((state) => state.isCalibrating);
+  const setCalibrating = useAppStore((state) => state.setCalibrating);
+  const calibrationLocks = useAppStore((state) => state.calibrationLocks);
+  const setCalibrationLocks = useAppStore((state) => state.setCalibrationLocks);
 
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [poses, setPoses] = useState<PoseSample[]>([]);
   const zoningStateRef = useRef(createInitialZoningState());
   const featureStateRef = useRef(createInitialFeatureState());
+  const mappingStateRef = useRef(createInitialMappingState());
+  const previousGlobalEnergyRef = useRef(0);
+  const conductorRef = useRef(createConductor());
+  const transportRef = useRef<TransportController | null>(null);
+  const instrumentsRef = useRef<GarageBandInstruments | null>(null);
+  const calibrationWindowRef = useRef<{
+    startedAt: number;
+    anchors: Record<ZoneId, number | null>;
+  } | null>(null);
+
+  const handleToggleSession = useCallback(async () => {
+    if (isSessionRunning) {
+      setSessionRunning(false);
+      return;
+    }
+
+    try {
+      if (!transportRef.current) {
+        transportRef.current = await createToneTransportController();
+      }
+      if (!instrumentsRef.current) {
+        instrumentsRef.current = await createInstruments();
+      }
+      await transportRef.current.start();
+      transportRef.current.setBpm(bpm);
+    } catch {
+      // Camera can still run without audio start.
+    }
+
+    setSessionRunning(true);
+  }, [bpm, isSessionRunning, setSessionRunning]);
+
+  useEffect(() => {
+    if (!isSessionRunning) {
+      transportRef.current?.stop();
+      mappingStateRef.current = createInitialMappingState();
+      previousGlobalEnergyRef.current = 0;
+      conductorRef.current = createConductor();
+      setDiagnostics({ currentChord: 'Am', movementToAudioMs: 0 });
+      return;
+    }
+
+    if (transportRef.current) {
+      transportRef.current.setBpm(bpm);
+    }
+
+    setDiagnostics({ currentChord: conductorRef.current.currentChord() });
+    const msPerChord = (60 / bpm) * 4 * 1000;
+    const intervalId = window.setInterval(() => {
+      const nextChord = conductorRef.current.advanceChord();
+      setDiagnostics({ currentChord: nextChord });
+    }, msPerChord);
+
+    return () => window.clearInterval(intervalId);
+  }, [bpm, isSessionRunning, setDiagnostics]);
+
+  useEffect(() => {
+    if (!isSessionRunning || calibrationRequestToken === 0) {
+      return;
+    }
+
+    calibrationWindowRef.current = {
+      startedAt: performance.now(),
+      anchors: {
+        left: null,
+        middle: null,
+        right: null,
+      },
+    };
+    setCalibrating(true);
+  }, [calibrationRequestToken, isSessionRunning, setCalibrating]);
 
   useEffect(() => {
     if (!isSessionRunning || !videoElement) {
@@ -49,7 +160,6 @@ function App() {
 
     let rafId = 0;
     let cancelled = false;
-    let estimatorLoaded = false;
     let inferInFlight = false;
     let lastInferenceTime = 0;
     let frameCount = 0;
@@ -59,7 +169,6 @@ function App() {
 
     const run = async () => {
       const estimator = await loadMoveNet();
-      estimatorLoaded = true;
 
       const loop = (timestamp: number) => {
         if (cancelled) {
@@ -89,6 +198,21 @@ function App() {
 
               const width = videoElement.videoWidth || videoElement.clientWidth || 640;
               const now = performance.now();
+
+              if (isCalibrating && calibrationWindowRef.current) {
+                const raised = results.filter(hasRaisedHands);
+                raised.forEach((pose) => {
+                  const zone = zoneForX(pose.centerX, width);
+                  calibrationWindowRef.current!.anchors[zone] = pose.centerX;
+                });
+
+                if (now - calibrationWindowRef.current.startedAt >= 2000) {
+                  setCalibrationLocks(calibrationWindowRef.current.anchors);
+                  setCalibrating(false);
+                  calibrationWindowRef.current = null;
+                }
+              }
+
               const nextZoning = assignZones({
                 poses: results.map((pose, poseIndex) => ({
                   score: pose.score,
@@ -99,8 +223,10 @@ function App() {
                 width,
                 now,
                 state: zoningStateRef.current,
+                anchorX: calibrationLocks,
               });
               zoningStateRef.current = nextZoning;
+
               const zonePoses = {
                 left:
                   nextZoning.occupants.left?.poseIndex !== undefined
@@ -115,6 +241,7 @@ function App() {
                     ? results[nextZoning.occupants.right.poseIndex] ?? null
                     : null,
               };
+
               const featureResult = computeZoneFeatures({
                 zonePoses,
                 timestamp: now,
@@ -158,6 +285,60 @@ function App() {
                     }
                   : null,
               });
+
+              const transport = transportRef.current;
+              const instruments = instrumentsRef.current;
+              if (transport && instruments) {
+                const mappingResult = mapFeaturesToEvents({
+                  timestamp: now,
+                  state: mappingStateRef.current,
+                  conductor: conductorRef.current,
+                  features: featureResult.features,
+                  previousGlobalEnergy: previousGlobalEnergyRef.current,
+                });
+
+                mappingStateRef.current = mappingResult.nextState;
+                previousGlobalEnergyRef.current = mappingResult.globalEnergy;
+
+                const delays: number[] = [];
+                mappingResult.events.forEach((event) => {
+                  if (!conductorEnabled && event.instrument === 'pad' && event.velocity <= 0.18) {
+                    return;
+                  }
+
+                  const scheduled = transport.schedule(
+                    (time) => {
+                      if (event.instrument === 'drums') {
+                        if (event.kind === 'kick') {
+                          instruments.triggerKick(time, event.velocity);
+                        } else if (event.kind === 'snare') {
+                          instruments.triggerSnare(time, event.velocity);
+                        } else {
+                          instruments.triggerHat(time, event.velocity);
+                        }
+                        return;
+                      }
+
+                      if (event.instrument === 'bass') {
+                        instruments.triggerBass(event.note, time, event.velocity);
+                        return;
+                      }
+
+                      instruments.triggerPad(event.notes, time, event.velocity, event.filterCutoff);
+                    },
+                    bpm,
+                    quantization,
+                  );
+
+                  const delayMs = Math.max(0, (scheduled - transport.now()) * 1000);
+                  delays.push(delayMs);
+                });
+
+                if (delays.length > 0) {
+                  const avgDelay = delays.reduce((sum, delay) => sum + delay, 0) / delays.length;
+                  setDiagnostics({ movementToAudioMs: avgDelay });
+                }
+              }
             })
             .finally(() => {
               inferInFlight = false;
@@ -174,12 +355,22 @@ function App() {
 
     return () => {
       cancelled = true;
-      if (estimatorLoaded) {
-        // Keep loaded model cached for subsequent start/stop toggles.
-      }
       window.cancelAnimationFrame(rafId);
     };
-  }, [isSessionRunning, setDiagnostics, setZoneFeature, setZoneOccupants, videoElement]);
+  }, [
+    bpm,
+    calibrationLocks,
+    conductorEnabled,
+    isCalibrating,
+    isSessionRunning,
+    quantization,
+    setCalibrating,
+    setCalibrationLocks,
+    setDiagnostics,
+    setZoneFeature,
+    setZoneOccupants,
+    videoElement,
+  ]);
 
   const drawOverlay = useMemo(
     () => (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -242,7 +433,7 @@ function App() {
   return (
     <main className="app-shell">
       <h1>AI Garage Band</h1>
-      <Controls onToggleSession={() => setSessionRunning(!isSessionRunning)} />
+      <Controls onToggleSession={() => void handleToggleSession()} />
       <CameraView isRunning={isSessionRunning} onVideoElementChange={handleVideoElementChange}>
         {(video) => <OverlayCanvas video={video} onDraw={drawOverlay} enabled={true} />}
       </CameraView>

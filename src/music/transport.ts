@@ -24,6 +24,7 @@ export function nextQuantizedTime(
 }
 
 export interface TransportController {
+  now: () => number;
   start: () => Promise<void>;
   stop: () => void;
   setBpm: (bpm: number) => void;
@@ -39,6 +40,7 @@ export async function createToneTransportController(): Promise<TransportControll
   const Tone = await import('tone');
 
   return {
+    now: () => Tone.now(),
     start: async () => {
       await Tone.start();
       Tone.Transport.start();
