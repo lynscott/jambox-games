@@ -1,5 +1,11 @@
 import { create } from 'zustand';
-import type { AppDiagnostics, Quantization, ZoneFeatureSnapshot, ZoneId } from '../types';
+import type {
+  AppDiagnostics,
+  Quantization,
+  ZoneFeatureSnapshot,
+  ZoneId,
+  ZoneOccupantSnapshot,
+} from '../types';
 
 export interface AppState {
   isSessionRunning: boolean;
@@ -11,6 +17,7 @@ export interface AppState {
   conductorEnabled: boolean;
   diagnostics: AppDiagnostics;
   zoneFeatures: Record<ZoneId, ZoneFeatureSnapshot>;
+  zoneOccupants: Record<ZoneId, ZoneOccupantSnapshot | null>;
   setSessionRunning: (isRunning: boolean) => void;
   setCalibrating: (isCalibrating: boolean) => void;
   requestCalibration: () => void;
@@ -20,6 +27,7 @@ export interface AppState {
   setConductorEnabled: (enabled: boolean) => void;
   setDiagnostics: (diagnostics: Partial<AppDiagnostics>) => void;
   setZoneFeature: (zone: ZoneId, feature: Partial<ZoneFeatureSnapshot>) => void;
+  setZoneOccupants: (occupants: Record<ZoneId, ZoneOccupantSnapshot | null>) => void;
 }
 
 const DEFAULT_ZONE_FEATURE: ZoneFeatureSnapshot = {
@@ -54,6 +62,11 @@ export const createInitialState = () => ({
     middle: DEFAULT_ZONE_FEATURE,
     right: DEFAULT_ZONE_FEATURE,
   },
+  zoneOccupants: {
+    left: null,
+    middle: null,
+    right: null,
+  },
 });
 
 export const useAppStore = create<AppState>((set) => ({
@@ -81,4 +94,5 @@ export const useAppStore = create<AppState>((set) => ({
         },
       },
     })),
+  setZoneOccupants: (zoneOccupants) => set({ zoneOccupants }),
 }));

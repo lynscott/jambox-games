@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 interface CameraViewProps {
   isRunning: boolean;
-  children?: (video: HTMLVideoElement | null) => React.ReactNode;
+  children?: (video: HTMLVideoElement | null) => ReactNode;
+  onVideoElementChange?: (video: HTMLVideoElement | null) => void;
 }
 
-export function CameraView({ isRunning, children }: CameraViewProps) {
+export function CameraView({ isRunning, children, onVideoElementChange }: CameraViewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -42,9 +43,11 @@ export function CameraView({ isRunning, children }: CameraViewProps) {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
+          onVideoElementChange?.(videoRef.current);
         }
       } catch {
         stopStream();
+        onVideoElementChange?.(null);
         setErrorMessage('Unable to access webcam. Check permissions and reload.');
       }
     };
@@ -52,9 +55,10 @@ export function CameraView({ isRunning, children }: CameraViewProps) {
     void start();
 
     return () => {
+      onVideoElementChange?.(null);
       stopStream();
     };
-  }, [isRunning]);
+  }, [isRunning, onVideoElementChange]);
 
   return (
     <section className="camera-view" aria-label="Camera View">

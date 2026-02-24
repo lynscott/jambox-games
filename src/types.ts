@@ -9,6 +9,12 @@ export interface ZoneFeatureSnapshot {
   energy: number;
 }
 
+export interface ZoneOccupantSnapshot {
+  score: number;
+  centerX: number;
+  centerY: number;
+}
+
 export interface AppDiagnostics {
   fps: number;
   inferenceMs: number;
