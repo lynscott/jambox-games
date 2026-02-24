@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CameraView } from './components/CameraView';
 import { Controls } from './components/Controls';
+import { Diagnostics } from './components/Diagnostics';
 import { OverlayCanvas } from './components/OverlayCanvas';
+import { computeZoneFeatures, createInitialFeatureState } from './pose/features';
 import { loadMoveNet, type PoseSample } from './pose/movenet';
 import { assignZones, createInitialZoningState } from './pose/zoning';
 import { useAppStore } from './state/store';
@@ -28,15 +30,18 @@ function App() {
   const showSkeleton = useAppStore((state) => state.showSkeleton);
   const setDiagnostics = useAppStore((state) => state.setDiagnostics);
   const setZoneOccupants = useAppStore((state) => state.setZoneOccupants);
+  const setZoneFeature = useAppStore((state) => state.setZoneFeature);
 
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [poses, setPoses] = useState<PoseSample[]>([]);
   const zoningStateRef = useRef(createInitialZoningState());
+  const featureStateRef = useRef(createInitialFeatureState());
 
   useEffect(() => {
     if (!isSessionRunning || !videoElement) {
       setPoses([]);
       zoningStateRef.current = createInitialZoningState();
+      featureStateRef.current = createInitialFeatureState();
       setDiagnostics({ personCount: 0, inferenceMs: 0, fps: 0 });
       setZoneOccupants({ left: null, middle: null, right: null });
       return;
@@ -96,11 +101,39 @@ function App() {
                 state: zoningStateRef.current,
               });
               zoningStateRef.current = nextZoning;
+              const zonePoses = {
+                left:
+                  nextZoning.occupants.left?.poseIndex !== undefined
+                    ? results[nextZoning.occupants.left.poseIndex] ?? null
+                    : null,
+                middle:
+                  nextZoning.occupants.middle?.poseIndex !== undefined
+                    ? results[nextZoning.occupants.middle.poseIndex] ?? null
+                    : null,
+                right:
+                  nextZoning.occupants.right?.poseIndex !== undefined
+                    ? results[nextZoning.occupants.right.poseIndex] ?? null
+                    : null,
+              };
+              const featureResult = computeZoneFeatures({
+                zonePoses,
+                timestamp: now,
+                state: featureStateRef.current,
+              });
+              featureStateRef.current = featureResult.nextState;
 
               setPoses(results);
+              setZoneFeature('left', featureResult.features.left);
+              setZoneFeature('middle', featureResult.features.middle);
+              setZoneFeature('right', featureResult.features.right);
               setDiagnostics({
                 inferenceMs,
                 personCount: results.length,
+                zoneEnergy: {
+                  left: featureResult.features.left.energy,
+                  middle: featureResult.features.middle.energy,
+                  right: featureResult.features.right.energy,
+                },
               });
               setZoneOccupants({
                 left: nextZoning.occupants.left
@@ -146,7 +179,7 @@ function App() {
       }
       window.cancelAnimationFrame(rafId);
     };
-  }, [isSessionRunning, setDiagnostics, setZoneOccupants, videoElement]);
+  }, [isSessionRunning, setDiagnostics, setZoneFeature, setZoneOccupants, videoElement]);
 
   const drawOverlay = useMemo(
     () => (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -214,6 +247,7 @@ function App() {
         {(video) => <OverlayCanvas video={video} onDraw={drawOverlay} enabled={true} />}
       </CameraView>
       <p className="status-text">Session: {isSessionRunning ? 'Running' : 'Stopped'}</p>
+      <Diagnostics />
     </main>
   );
 }
