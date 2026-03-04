@@ -2,6 +2,8 @@ import type { LyricsCue, LyricsTrack } from './lyrics';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 const LYRICS_API_BASE = 'https://api.lyrics.ovh/v1';
+const LRCLIB_API_BASE = 'https://lrclib.net/api';
+const ITUNES_SEARCH_API_BASE = 'https://itunes.apple.com/search';
 const DEFAULT_TOP_QUERY = 'official instrumental audio';
 const DEFAULT_MAX_ROUNDS = 8;
 
@@ -15,6 +17,52 @@ export interface YoutubeInstrumentalOption {
   durationMs: number;
   youtubeUrl: string;
 }
+
+export interface CuratedLyricsSeed {
+  id: string;
+  title: string;
+  artist: string;
+  youtubeQuery: string;
+}
+
+export const CURATED_LYRICS_SEEDS: CuratedLyricsSeed[] = [
+  {
+    id: 'billie-jean',
+    title: 'Billie Jean',
+    artist: 'Michael Jackson',
+    youtubeQuery: 'Michael Jackson Billie Jean instrumental',
+  },
+  {
+    id: 'i-want-it-that-way',
+    title: 'I Want It That Way',
+    artist: 'Backstreet Boys',
+    youtubeQuery: 'Backstreet Boys I Want It That Way instrumental',
+  },
+  {
+    id: 'no-scrubs',
+    title: 'No Scrubs',
+    artist: 'TLC',
+    youtubeQuery: 'TLC No Scrubs instrumental',
+  },
+  {
+    id: 'hey-ya',
+    title: 'Hey Ya!',
+    artist: 'Outkast',
+    youtubeQuery: 'Outkast Hey Ya instrumental',
+  },
+  {
+    id: 'yeah',
+    title: 'Yeah!',
+    artist: 'Usher',
+    youtubeQuery: 'Usher Yeah instrumental',
+  },
+  {
+    id: 'mr-brightside',
+    title: 'Mr. Brightside',
+    artist: 'The Killers',
+    youtubeQuery: 'The Killers Mr Brightside instrumental',
+  },
+];
 
 interface YoutubeSearchResponse {
   items: Array<{
@@ -38,8 +86,13 @@ interface YoutubeVideosResponse {
   }>;
 }
 
+interface LrclibTrackResponse {
+  plainLyrics?: string;
+  syncedLyrics?: string;
+}
+
 function getYoutubeApiKey() {
-  return import.meta.env.VITE_YOUTUBE_API_KEY || '';
+  return import.meta.env.VITE_YOUTUBE_API_KEY || import.meta.env.VITE_YOUTUBE_KEY || '';
 }
 
 export function hasYoutubeApiKey() {
@@ -69,9 +122,17 @@ function slugify(value: string) {
 function normalizeInstrumentalTitle(value: string) {
   return value
     .replace(/\[[^\]]+\]/g, ' ')
-    .replace(/\(([^)]*instrumental[^)]*|lyrics?|audio|official[^)]*)\)/gi, ' ')
+    .replace(
+      /\(([^)]*instrumental[^)]*|lyrics?|audio|official[^)]*|reprod[^)]*|prod\.?[^)]*|remake[^)]*|cover[^)]*|slowed[^)]*|sped up[^)]*)\)/gi,
+      ' ',
+    )
     .replace(/official\s+(video|audio)/gi, ' ')
     .replace(/instrumental/gi, ' ')
+    .replace(/reprod\.?/gi, ' ')
+    .replace(/prod\.?\s+by\s+[^-]+/gi, ' ')
+    .replace(/prod\.?/gi, ' ')
+    .replace(/cover/gi, ' ')
+    .replace(/remake/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -146,6 +207,63 @@ async function fetchLyrics(artist: string, title: string) {
   return payload.lyrics;
 }
 
+async function fetchLrclibLyrics(artist: string, title: string, durationMs?: number) {
+  const url = new URL(`${LRCLIB_API_BASE}/search`);
+  url.searchParams.set('artist_name', artist);
+  url.searchParams.set('track_name', title);
+  if (durationMs && Number.isFinite(durationMs)) {
+    url.searchParams.set('duration', String(Math.round(durationMs / 1000)));
+  }
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`LRCLIB request failed (${response.status})`);
+  }
+
+  const payload = (await response.json().catch(() => null)) as LrclibTrackResponse[] | null;
+  const match = payload?.find((item) => item.syncedLyrics || item.plainLyrics) || null;
+  if (!match) {
+    throw new Error('LRCLIB returned no lyrics');
+  }
+
+  return {
+    plainLyrics: String(match.plainLyrics || '').trim(),
+    syncedLyrics: String(match.syncedLyrics || '').trim(),
+  };
+}
+
+async function fetchCanonicalTrackMetadata(option: YoutubeInstrumentalOption) {
+  const url = new URL(ITUNES_SEARCH_API_BASE);
+  url.searchParams.set('media', 'music');
+  url.searchParams.set('entity', 'song');
+  url.searchParams.set('limit', '5');
+  url.searchParams.set('term', `${option.artist} ${option.title}`);
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | {
+        results?: Array<{
+          artistName?: string;
+          trackName?: string;
+        }>;
+      }
+    | null;
+
+  const match = payload?.results?.find((result) => result.artistName && result.trackName);
+  if (!match?.artistName || !match.trackName) {
+    return null;
+  }
+
+  return {
+    artist: match.artistName.trim(),
+    title: match.trackName.trim(),
+  };
+}
+
 async function fetchLyricsWithFallbacks(option: YoutubeInstrumentalOption) {
   const primary = deriveArtistAndTitle(`${option.artist} - ${option.title}`, option.channelTitle);
   const titleVariants = [
@@ -154,9 +272,11 @@ async function fetchLyricsWithFallbacks(option: YoutubeInstrumentalOption) {
     option.title.replace(/[.!]+$/g, '').trim(),
     normalizeInstrumentalTitle(option.title),
   ].filter(Boolean);
+  const canonicalTrack = await fetchCanonicalTrackMetadata(option);
 
   const candidates = [
     { artist: primary.artist, title: primary.title },
+    canonicalTrack,
     { artist: option.artist, title: titleVariants[0] || option.title },
     { artist: option.channelTitle.replace(/VEVO|Topic/gi, '').trim(), title: titleVariants[0] || option.title },
     ...titleVariants.map((title) => ({ artist: option.artist, title })),
@@ -164,13 +284,34 @@ async function fetchLyricsWithFallbacks(option: YoutubeInstrumentalOption) {
 
   for (const candidate of candidates) {
     try {
-      return await fetchLyrics(candidate.artist, candidate.title);
+      const lrclib = await fetchLrclibLyrics(candidate.artist, candidate.title, option.durationMs);
+      if (lrclib.syncedLyrics || lrclib.plainLyrics) {
+        return lrclib;
+      }
+    } catch {
+      // Try the next lookup variant.
+    }
+
+    try {
+      return {
+        plainLyrics: await fetchLyrics(candidate.artist, candidate.title),
+        syncedLyrics: '',
+      };
     } catch {
       // Try the next lookup variant.
     }
   }
 
   throw new Error('Lyrics API did not return lyrics for this song.');
+}
+
+async function findBestYoutubeInstrumental(query: string) {
+  const results = await searchYoutubeInstrumentals(query);
+  const match = results[0];
+  if (!match) {
+    throw new Error('No instrumental result found on YouTube.');
+  }
+  return match;
 }
 
 function buildGeneratedCues(lyrics: string, durationMs: number): LyricsCue[] {
@@ -198,6 +339,40 @@ function buildGeneratedCues(lyrics: string, durationMs: number): LyricsCue[] {
       text,
     };
   });
+}
+
+function buildSyncedCues(syncedLyrics: string): LyricsCue[] {
+  const parsed = syncedLyrics
+    .split(/\r?\n/)
+    .map((line, index) => {
+      const match = line.trim().match(/^\[(\d{2,}):(\d{2})(?:\.(\d{1,3}))?\](.*)$/);
+      if (!match) {
+        return null;
+      }
+
+      const minutes = Number(match[1] || 0);
+      const seconds = Number(match[2] || 0);
+      const millis = Number((match[3] || '0').padEnd(3, '0'));
+      const text = match[4].trim();
+      if (!text) {
+        return null;
+      }
+
+      return {
+        id: `line-${index + 1}`,
+        startMs: minutes * 60_000 + seconds * 1000 + millis,
+        text,
+      };
+    })
+    .filter((item): item is { id: string; startMs: number; text: string } => Boolean(item))
+    .slice(0, DEFAULT_MAX_ROUNDS);
+
+  return parsed.map((cue, index) => ({
+    id: cue.id,
+    startMs: cue.startMs,
+    endMs: parsed[index + 1] ? Math.max(cue.startMs + 900, parsed[index + 1].startMs - 120) : cue.startMs + 3500,
+    text: cue.text,
+  }));
 }
 
 export async function searchYoutubeInstrumentals(query: string) {
@@ -249,7 +424,8 @@ export async function searchYoutubeInstrumentals(query: string) {
 
 export async function buildLyricsTrackFromYoutube(option: YoutubeInstrumentalOption): Promise<LyricsTrack> {
   const lyrics = await fetchLyricsWithFallbacks(option);
-  const cues = buildGeneratedCues(lyrics, option.durationMs);
+  const syncedCues = lyrics.syncedLyrics ? buildSyncedCues(lyrics.syncedLyrics) : [];
+  const cues = syncedCues.length > 0 ? syncedCues : buildGeneratedCues(lyrics.plainLyrics, option.durationMs);
 
   return {
     id: slugify(`${option.artist}-${option.title}-${option.videoId}`),
@@ -263,4 +439,14 @@ export async function buildLyricsTrackFromYoutube(option: YoutubeInstrumentalOpt
     youtubeUrl: option.youtubeUrl,
     cues,
   };
+}
+
+export async function buildLyricsTrackFromSeed(seed: CuratedLyricsSeed): Promise<LyricsTrack> {
+  const option = await findBestYoutubeInstrumental(seed.youtubeQuery);
+
+  return buildLyricsTrackFromYoutube({
+    ...option,
+    title: seed.title,
+    artist: seed.artist,
+  });
 }

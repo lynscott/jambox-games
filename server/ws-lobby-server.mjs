@@ -1,6 +1,41 @@
+import { createServer } from 'node:http';
+import { Buffer } from 'node:buffer';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { WebSocketServer } from 'ws';
 
+function loadDotEnvFile(filename) {
+  const path = resolve(process.cwd(), filename);
+  if (!existsSync(path)) {
+    return;
+  }
+
+  const contents = readFileSync(path, 'utf8');
+  for (const line of contents.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadDotEnvFile('.env');
+loadDotEnvFile('.env.local');
+
 const port = Number(process.env.PORT || 8080);
+const openAiApiKey = process.env.OPENAI_API_KEY || '';
+const transcriptionModel = process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe';
 
 /** @type {Map<string, { code: string; hostClientId: string; roomCodes: Set<string> }>} */
 const lobbies = new Map();
@@ -9,7 +44,130 @@ const rooms = new Map();
 /** @type {Map<import('ws').WebSocket, { id: string; role: 'host'|'phone'|null; lobbyCode: string | null; roomCode: string | null; phoneName: string | null; playerSlot: 1 | 2 | null }>} */
 const clients = new Map();
 
-const wss = new WebSocketServer({ port });
+function setCorsHeaders(response) {
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+
+  for await (const chunk of request) {
+    chunks.push(chunk);
+  }
+
+  if (chunks.length === 0) {
+    return {};
+  }
+
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
+async function handleTranscriptionRequest(request, response) {
+  if (!openAiApiKey) {
+    response.writeHead(500, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ error: 'OPENAI_API_KEY is not configured on the server.' }));
+    return;
+  }
+
+  let payload;
+  try {
+    payload = await readJsonBody(request);
+  } catch {
+    response.writeHead(400, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ error: 'Malformed JSON body.' }));
+    return;
+  }
+
+  const audioBase64 = String(payload.audioBase64 || '');
+  const mimeType = String(payload.mimeType || 'audio/webm');
+  const prompt = String(payload.prompt || '').trim();
+
+  if (!audioBase64) {
+    response.writeHead(400, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ error: 'audioBase64 is required.' }));
+    return;
+  }
+
+  try {
+    const audioBuffer = Buffer.from(audioBase64, 'base64');
+    const extension = mimeType.includes('ogg')
+      ? 'ogg'
+      : mimeType.includes('mp4')
+        ? 'mp4'
+        : mimeType.includes('wav')
+          ? 'wav'
+          : 'webm';
+    const formData = new FormData();
+    formData.append(
+      'file',
+      new Blob([audioBuffer], { type: mimeType }),
+      `speech.${extension}`,
+    );
+    formData.append('model', transcriptionModel);
+    formData.append('language', 'en');
+    formData.append('response_format', 'json');
+    if (prompt) {
+      formData.append('prompt', prompt);
+    }
+
+    const upstream = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${openAiApiKey}`,
+      },
+      body: formData,
+    });
+
+    const result = await upstream.json().catch(() => null);
+    if (!upstream.ok) {
+      response.writeHead(upstream.status, { 'Content-Type': 'application/json' });
+      response.end(
+        JSON.stringify({
+          error: result?.error?.message || 'Transcription request failed.',
+        }),
+      );
+      return;
+    }
+
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(
+      JSON.stringify({
+        text: typeof result?.text === 'string' ? result.text : '',
+      }),
+    );
+  } catch {
+    response.writeHead(500, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ error: 'Transcription proxy failed.' }));
+  }
+}
+
+const server = createServer((request, response) => {
+  setCorsHeaders(response);
+
+  if (request.method === 'OPTIONS') {
+    response.writeHead(204);
+    response.end();
+    return;
+  }
+
+  if (request.method === 'GET' && request.url === '/health') {
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (request.method === 'POST' && request.url === '/api/transcribe') {
+    void handleTranscriptionRequest(request, response);
+    return;
+  }
+
+  response.writeHead(404, { 'Content-Type': 'application/json' });
+  response.end(JSON.stringify({ error: 'Not found' }));
+});
+
+const wss = new WebSocketServer({ server });
 
 function randomCode(size, alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789') {
   let code = '';
@@ -349,4 +507,6 @@ wss.on('connection', (ws) => {
   });
 });
 
-console.log(`Lobby socket server running on ws://localhost:${port}`);
+server.listen(port, () => {
+  console.log(`Lobby socket server running on ws://localhost:${port}`);
+});

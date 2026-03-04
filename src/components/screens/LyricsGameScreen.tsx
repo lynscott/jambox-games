@@ -7,6 +7,7 @@ import {
   type LyricsResultSummary,
   type LyricsTrack,
 } from '../../game/lyrics';
+import { pickSupportedAudioMimeType, recordAudioClip, transcribeAudioBlob } from '../../audio/transcription';
 import { useLobbySession } from '../../lobby/useLobbySession';
 
 const COUNTDOWN_STEPS = ['3', '2', '1', 'GO'];
@@ -40,11 +41,19 @@ export function LyricsGameScreen({ sessionId, track, onComplete, onBackToSetup }
   const startTimeRef = useRef<number | null>(null);
   const startWallTimeRef = useRef<number | null>(null);
   const hasCompletedRef = useRef(false);
+  const streamRef = useRef<MediaStream | null>(null);
+  const mimeTypeRef = useRef('');
+  const activeHostPromptKeyRef = useRef('');
+  const hostRunTokenRef = useRef(0);
+  const hostTranscriptionCountRef = useRef(0);
 
   const [gameState, setGameState] = useState<'ready' | 'countdown' | 'playing'>('ready');
   const [countdownLabel, setCountdownLabel] = useState<string | null>(null);
   const [activeCueIndex, setActiveCueIndex] = useState(0);
   const [showYoutubePlayer, setShowYoutubePlayer] = useState(false);
+  const [hostMicStatus, setHostMicStatus] = useState<'idle' | 'requesting' | 'listening' | 'blocked'>('idle');
+  const [hostTranscriptStatus, setHostTranscriptStatus] = useState('Laptop mic idle.');
+  const [hostTranscriptCount, setHostTranscriptCount] = useState(0);
   const [cueResultsByPlayer, setCueResultsByPlayer] = useState<Record<LyricsPlayerSlot, Array<LyricsCueResult | null>>>(
     cueResultsByPlayerRef.current,
   );
@@ -57,6 +66,9 @@ export function LyricsGameScreen({ sessionId, track, onComplete, onBackToSetup }
       if (audioRef.current) {
         audioRef.current.pause();
       }
+      hostRunTokenRef.current += 1;
+      activeHostPromptKeyRef.current = '';
+      streamRef.current?.getTracks().forEach((track) => track.stop());
       setShowYoutubePlayer(false);
     };
   }, []);
@@ -96,10 +108,122 @@ export function LyricsGameScreen({ sessionId, track, onComplete, onBackToSetup }
     if (audioRef.current) {
       audioRef.current.pause();
     }
+    hostRunTokenRef.current += 1;
+    activeHostPromptKeyRef.current = '';
+    streamRef.current?.getTracks().forEach((track) => track.stop());
     setShowYoutubePlayer(false);
 
     onComplete(summarizeLyricsHeadToHead(track, cueResultsByPlayerRef.current));
   };
+
+  useEffect(() => {
+    if (hostMicStatus !== 'idle') {
+      return;
+    }
+
+    const enableMicrophone = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setHostMicStatus('blocked');
+        setHostTranscriptStatus('Laptop microphone is not available.');
+        return;
+      }
+
+      if (typeof MediaRecorder === 'undefined') {
+        setHostMicStatus('blocked');
+        setHostTranscriptStatus('MediaRecorder is not supported in this browser.');
+        return;
+      }
+
+      const mimeType = pickSupportedAudioMimeType();
+      if (!mimeType) {
+        setHostMicStatus('blocked');
+        setHostTranscriptStatus('No supported recording format was found for the laptop mic.');
+        return;
+      }
+
+      setHostMicStatus('requesting');
+
+      try {
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamRef.current = stream;
+        mimeTypeRef.current = mimeType;
+        hostTranscriptionCountRef.current = 0;
+        setHostTranscriptCount(0);
+        setHostMicStatus('listening');
+        setHostTranscriptStatus('Laptop mic ready. The host can sing as Player 1.');
+      } catch {
+        setHostMicStatus('blocked');
+        setHostTranscriptStatus('Microphone permission was blocked on the laptop.');
+      }
+    };
+
+    void enableMicrophone();
+  }, [hostMicStatus]);
+
+  useEffect(() => {
+    if (
+      hostMicStatus !== 'listening' ||
+      gameState !== 'playing' ||
+      startWallTimeRef.current === null ||
+      !streamRef.current ||
+      !mimeTypeRef.current
+    ) {
+      return;
+    }
+
+    const prompt = track.cues[activeCueIndex];
+    if (!prompt) {
+      return;
+    }
+
+    const promptKey = `${sessionId}:${activeCueIndex}`;
+    if (activeHostPromptKeyRef.current === promptKey) {
+      return;
+    }
+
+    activeHostPromptKeyRef.current = promptKey;
+    const runToken = hostRunTokenRef.current;
+    const durationMs = Math.max(1800, Math.min(5000, prompt.endMs - prompt.startMs + 350));
+
+    void recordAudioClip(streamRef.current, mimeTypeRef.current, durationMs)
+      .then((clip) => {
+        if (runToken !== hostRunTokenRef.current || clip.size === 0) {
+          return '';
+        }
+
+        setHostTranscriptStatus(`Transcribing laptop clip for round ${activeCueIndex + 1}...`);
+        return transcribeAudioBlob(
+          clip,
+          'Transcribe the sung lyric line in English. Return only the words that were sung.',
+        );
+      })
+      .then((text) => {
+        if (runToken !== hostRunTokenRef.current) {
+          return;
+        }
+
+        hostTranscriptionCountRef.current += 1;
+        setHostTranscriptCount(hostTranscriptionCountRef.current);
+
+        if (!text) {
+          setHostTranscriptStatus(`Round ${activeCueIndex + 1}: no speech detected from laptop mic.`);
+          return;
+        }
+
+        const detectedAtMs = startWallTimeRef.current! + countdownDurationMs + (prompt.startMs + prompt.endMs) / 2;
+        applyAttempt(1, activeCueIndex, text, detectedAtMs);
+        setHostTranscriptStatus(`Round ${activeCueIndex + 1}: heard "${text}" on laptop mic.`);
+      })
+      .catch((error: unknown) => {
+        if (runToken !== hostRunTokenRef.current) {
+          return;
+        }
+
+        const message = error instanceof Error ? error.message : 'Laptop transcription failed.';
+        setHostTranscriptStatus(message);
+      });
+  }, [activeCueIndex, countdownDurationMs, gameState, hostMicStatus, sessionId, track.cues]);
 
   useEffect(() => {
     const attemptsForSession = lyricsAttempts.filter((attempt) => attempt.sessionId === sessionId);
@@ -269,10 +393,25 @@ export function LyricsGameScreen({ sessionId, track, onComplete, onBackToSetup }
         ) : null}
 
         <div className="on-beat-status-card">
+          <h2>Laptop Mic</h2>
+          <p>
+            {hostMicStatus === 'listening'
+              ? 'Listening and transcribing as Player 1.'
+              : hostMicStatus === 'requesting'
+                ? 'Requesting microphone...'
+                : hostMicStatus === 'blocked'
+                  ? 'Laptop microphone unavailable.'
+                  : 'Laptop microphone not enabled.'}
+          </p>
+          <p>{hostTranscriptStatus}</p>
+          <p>Laptop clips sent: {hostTranscriptCount}</p>
+        </div>
+
+        <div className="on-beat-status-card">
           {gameState === 'ready' ? (
             <>
               <h2>Ready</h2>
-              <p>Blind round mode: lyrics stay hidden. Each player sings what they think the line is.</p>
+              <p>Blind round mode: lyrics stay hidden. The laptop mic scores Player 1 automatically.</p>
               <button type="button" className="phase-cta" onClick={handleStart}>
                 Start Lyrics Run
               </button>
@@ -286,7 +425,7 @@ export function LyricsGameScreen({ sessionId, track, onComplete, onBackToSetup }
             <>
               <h2>Now Singing</h2>
               <p className="lyrics-line">Round {activeCueIndex + 1} of {track.cues.length}</p>
-              <p>Phones should sing now. No lyric text shown.</p>
+              <p>Sing into the laptop mic now. No lyric text shown.</p>
             </>
           )}
         </div>
