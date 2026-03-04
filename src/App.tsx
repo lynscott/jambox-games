@@ -18,7 +18,7 @@ import {
   type ScoringState,
 } from './game/scoring';
 import { shouldProcessPlayerFeedback } from './game/scoring-gates';
-import { computeCueWindowActive, countdownSecond, shouldTriggerCountdownTick } from './game/cues';
+import { countdownSecond, shouldTriggerCountdownTick } from './game/cues';
 import { shouldShowSkeletonOverlay } from './game/visuals';
 import { createBackingTrackScheduler, syncBackingTrackPlayback, type BackingTrackScheduler } from './music/backing-track';
 import { createConductor } from './music/conductor';
@@ -94,7 +94,6 @@ function App() {
   const setZoneFeature = useAppStore((state) => state.setZoneFeature);
   const bpm = useAppStore((state) => state.bpm);
   const quantization = useAppStore((state) => state.quantization);
-  const conductorEnabled = useAppStore((state) => state.conductorEnabled);
   const calibrationRequestToken = useAppStore((state) => state.calibrationRequestToken);
   const requestCalibration = useAppStore((state) => state.requestCalibration);
   const isCalibrating = useAppStore((state) => state.isCalibrating);
@@ -127,7 +126,6 @@ function App() {
 
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [poses, setPoses] = useState<PoseSample[]>([]);
-  const [beatPhase, setBeatPhase] = useState(0);
   const [loopArrangement, setLoopArrangement] = useState<LoopArrangement>(() =>
     computeLoopArrangement({
       nowSeconds: 0,
@@ -150,8 +148,6 @@ function App() {
   const scoringStateRef = useRef<ScoringState>(createInitialScoringState());
   const previousCountdownRemainingMsRef = useRef<number | null>(null);
   const jamStartTransportSecondsRef = useRef(0);
-  const guideBeatEventRef = useRef<number | null>(null);
-  const guideBeatCounterRef = useRef(0);
   const calibrationWindowRef = useRef<{
     startedAt: number;
     anchors: Record<ZoneId, number | null>;
@@ -172,12 +168,6 @@ function App() {
   );
 
   const prepareNewRun = useCallback(() => {
-    const transport = transportRef.current;
-    if (transport && guideBeatEventRef.current !== null) {
-      transport.clear(guideBeatEventRef.current);
-      guideBeatEventRef.current = null;
-    }
-    guideBeatCounterRef.current = 0;
     jamStartTransportSecondsRef.current = 0;
     setLoopArrangement(
       computeLoopArrangement({
@@ -232,7 +222,6 @@ function App() {
   const startJam = useCallback(() => {
     scoringStateRef.current = createInitialScoringState(performance.now());
     previousCountdownRemainingMsRef.current = null;
-    guideBeatCounterRef.current = 0;
 
     const transportNow = transportRef.current?.now() ?? performance.now() / 1000;
     jamStartTransportSecondsRef.current = transportNow;
@@ -408,11 +397,6 @@ function App() {
   // Chord progression timer
   useEffect(() => {
     if (!isSessionRunning) {
-      if (transportRef.current && guideBeatEventRef.current !== null) {
-        transportRef.current.clear(guideBeatEventRef.current);
-        guideBeatEventRef.current = null;
-      }
-      guideBeatCounterRef.current = 0;
       jamStartTransportSecondsRef.current = 0;
       transportRef.current?.stop();
       backingTrackRef.current?.stop();
@@ -509,48 +493,6 @@ function App() {
     return () => window.clearInterval(intervalId);
   }, [finalizeSession, gamePhase, isSessionRunning, jamDurationSec, updateJamTimer]);
 
-  // Guide beat loop: provides a clear tempo bed during jam.
-  useEffect(() => {
-    const transport = transportRef.current;
-    const instruments = instrumentsRef.current;
-    if (!transport || !instruments) {
-      return;
-    }
-
-    if (!isSessionRunning || gamePhase !== 'jam' || !conductorEnabled) {
-      if (guideBeatEventRef.current !== null) {
-        transport.clear(guideBeatEventRef.current);
-        guideBeatEventRef.current = null;
-      }
-      guideBeatCounterRef.current = 0;
-      return;
-    }
-
-    if (guideBeatEventRef.current !== null) {
-      return;
-    }
-
-    guideBeatCounterRef.current = 0;
-    guideBeatEventRef.current = transport.scheduleRepeat(
-      (time) => {
-        const beat = guideBeatCounterRef.current;
-        const isDownbeat = beat % 4 === 0;
-        instruments.triggerHat(time, isDownbeat ? 0.22 : 0.11);
-        guideBeatCounterRef.current = beat + 1;
-      },
-      '4n',
-      transport.now() + 0.05,
-    );
-
-    return () => {
-      if (guideBeatEventRef.current !== null) {
-        transport.clear(guideBeatEventRef.current);
-        guideBeatEventRef.current = null;
-      }
-      guideBeatCounterRef.current = 0;
-    };
-  }, [conductorEnabled, gamePhase, isSessionRunning]);
-
   // Last-10-seconds warning: visual countdown is rendered in JamScreen and this hook adds short audio ticks.
   useEffect(() => {
     if (gamePhase !== 'jam' || !isSessionRunning) {
@@ -596,41 +538,6 @@ function App() {
     };
     setCalibrating(true);
   }, [calibrationRequestToken, isSessionRunning, setCalibrating]);
-
-  // Beat phase animation
-  useEffect(() => {
-    if (!isSessionRunning) {
-      setBeatPhase(0);
-      return;
-    }
-
-    let rafId = 0;
-
-    const tick = () => {
-      const nowSeconds = transportRef.current ? transportRef.current.now() : performance.now() / 1000;
-      const beatLength = 60 / bpm;
-
-      const jamStartSeconds = jamStartTransportSecondsRef.current || nowSeconds;
-      const beatReferenceSeconds =
-        gamePhase === 'jam' ? Math.max(0, nowSeconds - jamStartSeconds) : nowSeconds;
-      setBeatPhase(((beatReferenceSeconds % beatLength) + beatLength) % beatLength / beatLength);
-
-      if (gamePhase === 'jam') {
-        setLoopArrangement(
-          computeLoopArrangement({
-            nowSeconds,
-            jamStartSeconds,
-            bpm,
-          }),
-        );
-      }
-
-      rafId = window.requestAnimationFrame(tick);
-    };
-
-    rafId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(rafId);
-  }, [bpm, gamePhase, isSessionRunning]);
 
   // Main inference + event loop
   useEffect(() => {
@@ -1013,11 +920,6 @@ function App() {
     setVideoElement(video);
   }, []);
 
-  const strikeWindowActive = useMemo(
-    () => computeCueWindowActive(beatPhase, quantization),
-    [beatPhase, quantization],
-  );
-
   const countdownUrgentSecond =
     gamePhase === 'jam' && jamTimeRemainingMs > 0 && jamTimeRemainingMs <= 10_000
       ? countdownSecond(jamTimeRemainingMs)
@@ -1030,8 +932,6 @@ function App() {
           video={video}
           onDraw={drawOverlay}
           enabled={true}
-          beatPhase={beatPhase}
-          cueWindowActive={strikeWindowActive}
           activeZones={gamePhase === 'jam' ? loopArrangement.activeZones : ALL_ACTIVE_ZONES}
           hitFlashes={hitFlashes}
         />
@@ -1123,7 +1023,6 @@ function App() {
           <JamScreen
             onToggleSession={handleToggleSession}
             arrangement={loopArrangement}
-            strikeWindowActive={strikeWindowActive}
             countdownSecond={countdownUrgentSecond}
           >
             {renderLiveStage()}

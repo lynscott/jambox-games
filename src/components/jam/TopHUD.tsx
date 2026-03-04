@@ -14,10 +14,9 @@ function safeNumber(value: unknown, fallback = 0): number {
 
 interface TopHUDProps {
   sectionCallout: string;
-  strikeWindowActive: boolean;
 }
 
-export function TopHUD({ sectionCallout, strikeWindowActive }: TopHUDProps) {
+export function TopHUD({ sectionCallout }: TopHUDProps) {
   const timeRemaining = useAppStore((s) => s.jamTimeRemainingMs);
   const score = useAppStore((s) => s.score);
   const chord = useAppStore((s) => s.diagnostics.currentChord);
@@ -51,10 +50,6 @@ export function TopHUD({ sectionCallout, strikeWindowActive }: TopHUDProps) {
       <div className="hud-chord">{chord}</div>
 
       <div className="hud-cue">{sectionCallout}</div>
-
-      <div className={`hud-strike${strikeWindowActive ? ' hud-strike--active' : ''}`}>
-        {strikeWindowActive ? 'HIT' : 'READY'}
-      </div>
     </header>
   );
 }

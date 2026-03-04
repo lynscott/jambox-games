@@ -21,7 +21,6 @@ describe('JamScreen', () => {
       <JamScreen
         onToggleSession={vi.fn()}
         arrangement={arrangement}
-        strikeWindowActive={false}
         countdownSecond={null}
       >
         <div>stage</div>

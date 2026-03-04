@@ -8,7 +8,6 @@ import { GearMenu } from '../jam/GearMenu';
 interface JamScreenProps {
   onToggleSession: () => void;
   arrangement: LoopArrangement;
-  strikeWindowActive: boolean;
   countdownSecond: number | null;
   children: ReactNode; // camera + overlay
 }
@@ -16,13 +15,12 @@ interface JamScreenProps {
 export function JamScreen({
   onToggleSession,
   arrangement,
-  strikeWindowActive,
   countdownSecond,
   children,
 }: JamScreenProps) {
   return (
     <div className="jam-screen">
-      <TopHUD sectionCallout={arrangement.callout} strikeWindowActive={strikeWindowActive} />
+      <TopHUD sectionCallout={arrangement.callout} />
 
       <div className="jam-stage">
         {children}

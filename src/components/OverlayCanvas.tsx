@@ -4,32 +4,27 @@ import type { ZoneId } from '../types';
 interface OverlayCanvasProps {
   video: HTMLVideoElement | null;
   enabled?: boolean;
-  beatPhase?: number;
-  cueWindowActive?: boolean;
   activeZones?: Record<ZoneId, boolean>;
   hitFlashes?: Record<ZoneId, number>;
   onDraw?: (ctx: CanvasRenderingContext2D, width: number, height: number) => void;
 }
 
 // Lane colors: drums (amber), bass (cyan), pad (magenta)
-const LANE_COLORS: Record<ZoneId, { wash: string; inactiveWash: string; glow: string; dot: string }> = {
+const LANE_COLORS: Record<ZoneId, { wash: string; inactiveWash: string; glow: string }> = {
   left: {
     wash: 'rgba(255, 140, 0, 0.06)',
     inactiveWash: 'rgba(255, 140, 0, 0.015)',
     glow: 'rgba(255, 140, 0, 0.7)',
-    dot: '#ff8c00',
   },
   middle: {
     wash: 'rgba(0, 229, 255, 0.06)',
     inactiveWash: 'rgba(0, 229, 255, 0.015)',
     glow: 'rgba(0, 229, 255, 0.7)',
-    dot: '#00e5ff',
   },
   right: {
     wash: 'rgba(224, 64, 251, 0.06)',
     inactiveWash: 'rgba(224, 64, 251, 0.015)',
     glow: 'rgba(224, 64, 251, 0.7)',
-    dot: '#e040fb',
   },
 };
 
@@ -40,8 +35,6 @@ export function drawNeonOverlay(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  beatPhase: number,
-  cueWindowActive: boolean,
   activeZones: Record<ZoneId, boolean>,
   hitFlashes: Record<ZoneId, number>,
   now: number,
@@ -84,50 +77,12 @@ export function drawNeonOverlay(
     ctx.stroke();
   });
 
-  // --- Beat dots with glow ---
-  const activeBeat = Math.floor((((beatPhase % 1) + 1) % 1) * 4) % 4;
-  ZONES.forEach((zone, i) => {
-    const x = zoneWidth * i + zoneWidth / 2;
-    const y = 26;
-    const isActive = i === activeBeat % 3;
-
-    ctx.beginPath();
-    if (isActive) {
-      ctx.shadowColor = LANE_COLORS[zone].glow;
-      ctx.shadowBlur = 14;
-      ctx.fillStyle = LANE_COLORS[zone].dot;
-      ctx.arc(x, y, 9, 0, Math.PI * 2);
-    } else {
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
-    }
-    ctx.fill();
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-  });
-
-  // --- Cue window strips ("play now" moment across all lanes) ---
-  if (cueWindowActive) {
-    ZONES.forEach((zone, i) => {
-      if (!activeZones[zone]) {
-        return;
-      }
-      const x = zoneWidth * i;
-      ctx.fillStyle = LANE_COLORS[zone].glow.replace(/[\d.]+\)$/, '0.35)');
-      ctx.fillRect(x + 6, 46, zoneWidth - 12, 6);
-    });
-  }
-
   ctx.restore();
 }
 
 export function OverlayCanvas({
   video,
   enabled = true,
-  beatPhase = 0,
-  cueWindowActive = false,
   activeZones = { left: true, middle: true, right: true },
   hitFlashes = { left: 0, middle: 0, right: 0 },
   onDraw,
@@ -166,8 +121,6 @@ export function OverlayCanvas({
         ctx,
         width,
         height,
-        beatPhase,
-        cueWindowActive,
         activeZones,
         hitFlashes,
         performance.now(),
@@ -181,7 +134,7 @@ export function OverlayCanvas({
 
     rafId = window.requestAnimationFrame(render);
     return () => window.cancelAnimationFrame(rafId);
-  }, [activeZones, beatPhase, cueWindowActive, enabled, hitFlashes, onDraw, video]);
+  }, [activeZones, enabled, hitFlashes, onDraw, video]);
 
   return <canvas ref={canvasRef} className="overlay-canvas" aria-label="Overlay Canvas" />;
 }

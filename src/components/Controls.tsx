@@ -16,12 +16,10 @@ export function Controls({ onToggleSession }: ControlsProps) {
   const bpm = useAppStore((state) => state.bpm);
   const quantization = useAppStore((state) => state.quantization);
   const showSkeleton = useAppStore((state) => state.showSkeleton);
-  const conductorEnabled = useAppStore((state) => state.conductorEnabled);
   const isCalibrating = useAppStore((state) => state.isCalibrating);
   const setBpm = useAppStore((state) => state.setBpm);
   const setQuantization = useAppStore((state) => state.setQuantization);
   const setShowSkeleton = useAppStore((state) => state.setShowSkeleton);
-  const setConductorEnabled = useAppStore((state) => state.setConductorEnabled);
   const requestCalibration = useAppStore((state) => state.requestCalibration);
 
   return (
@@ -64,16 +62,6 @@ export function Controls({ onToggleSession }: ControlsProps) {
           type="checkbox"
           checked={showSkeleton}
           onChange={(event) => setShowSkeleton(event.currentTarget.checked)}
-        />
-      </label>
-
-      <label>
-        Guide Beat
-        <input
-          aria-label="Guide Beat"
-          type="checkbox"
-          checked={conductorEnabled}
-          onChange={(event) => setConductorEnabled(event.currentTarget.checked)}
         />
       </label>
 

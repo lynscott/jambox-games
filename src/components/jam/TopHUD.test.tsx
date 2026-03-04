@@ -21,9 +21,16 @@ describe('TopHUD', () => {
       } as never,
     });
 
-    render(<TopHUD sectionCallout="Harmony" strikeWindowActive={false} />);
+    render(<TopHUD sectionCallout="Harmony" />);
 
     expect(screen.getByText('0')).toBeInTheDocument();
     expect(screen.getByText('-')).toBeInTheDocument();
+  });
+
+  it('does not render the metronome strike indicator', () => {
+    render(<TopHUD sectionCallout="Harmony" />);
+
+    expect(screen.queryByText('HIT')).not.toBeInTheDocument();
+    expect(screen.queryByText('READY')).not.toBeInTheDocument();
   });
 });
