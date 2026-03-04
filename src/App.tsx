@@ -5,7 +5,13 @@ import { JamScreen } from './components/screens/JamScreen';
 import { CalibrationScreen } from './components/screens/CalibrationScreen';
 import { ComingSoonScreen } from './components/screens/ComingSoonScreen';
 import { HomeScreen } from './components/screens/HomeScreen';
+import { LyricsGameScreen } from './components/screens/LyricsGameScreen';
+import { LyricsResultsScreen } from './components/screens/LyricsResultsScreen';
+import { LyricsSetupScreen } from './components/screens/LyricsSetupScreen';
 import { LobbyScreen } from './components/screens/LobbyScreen';
+import { OnBeatGameScreen } from './components/screens/OnBeatGameScreen';
+import { OnBeatResultsScreen } from './components/screens/OnBeatResultsScreen';
+import { OnBeatSetupScreen } from './components/screens/OnBeatSetupScreen';
 import { PermissionsScreen } from './components/screens/PermissionsScreen';
 import { ResultsScreen } from './components/screens/ResultsScreen';
 import { SetupScreen } from './components/screens/SetupScreen';
@@ -40,6 +46,9 @@ import { loadMoveNet, type PoseSample } from './pose/movenet';
 import { assignZones, createInitialZoningState } from './pose/zoning';
 import { useAppStore } from './state/store';
 import { buildVerzuzRoundDeck, type VerzuzPlayer, type VerzuzRoundResult } from './game/verzuz';
+import { type OnBeatDifficulty, type OnBeatResultSummary } from './game/onBeat';
+import { type LyricsResultSummary, type LyricsTrack } from './game/lyrics';
+import { LYRICS_TRACKS } from './game/lyricsCatalog.generated';
 import { LobbySessionProvider, useLobbySession } from './lobby/useLobbySession';
 import {
   beginSpotifyLogin,
@@ -84,14 +93,18 @@ const ROUTABLE_PHASES = new Set([
   'vs_setup',
   'vs_battle',
   'vs_results',
+  'on_beat_setup',
+  'on_beat_play',
+  'on_beat_results',
+  'lyrics_setup',
+  'lyrics_play',
+  'lyrics_results',
   'permissions',
   'calibration',
   'tutorial',
   'jam',
   'results',
   'vs_placeholder',
-  'on_beat_placeholder',
-  'lyrics_placeholder',
 ]);
 
 function parseGameSelection(value: string | null): GameSelection | null {
@@ -199,6 +212,12 @@ function AppContent() {
     null,
   ]);
   const [vsRoundTracks, setVsRoundTracks] = useState<Record<number, SpotifyTrackSummary | null>>({});
+  const [onBeatDifficulty, setOnBeatDifficulty] = useState<OnBeatDifficulty>('level1');
+  const [onBeatResult, setOnBeatResult] = useState<OnBeatResultSummary | null>(null);
+  const [onBeatSessionKey, setOnBeatSessionKey] = useState(0);
+  const [lyricsTrack, setLyricsTrack] = useState<LyricsTrack | null>(LYRICS_TRACKS[0] || null);
+  const [lyricsResult, setLyricsResult] = useState<LyricsResultSummary | null>(null);
+  const [lyricsSessionKey, setLyricsSessionKey] = useState(0);
 
   const zoningStateRef = useRef(createInitialZoningState());
   const featureStateRef = useRef(createInitialFeatureState());
@@ -335,31 +354,11 @@ function AppContent() {
     finalizeSession(jamDurationSec * 1000);
   }, [finalizeSession, isSessionRunning, jamDurationSec]);
 
-  const handlePlayAgain = useCallback(() => {
-    if (selectedGame === 'vs') {
-      resetVsBattle();
-      setGamePhase('vs_battle');
-      return;
-    }
-    prepareNewRun();
-    setSessionRunning(false);
-    setGamePhase('permissions');
-  }, [prepareNewRun, resetVsBattle, selectedGame, setGamePhase, setSessionRunning]);
-
-  const handleChangeSetup = useCallback(() => {
-    if (selectedGame === 'vs') {
-      resetVsBattle();
-      setGamePhase('vs_setup');
-      return;
-    }
-    prepareNewRun();
-    setSessionRunning(false);
-    setGamePhase('setup');
-  }, [prepareNewRun, resetVsBattle, selectedGame, setGamePhase, setSessionRunning]);
-
   const handleBackToMenu = useCallback(() => {
     prepareNewRun();
     resetVsBattle();
+    setOnBeatResult(null);
+    setLyricsResult(null);
     setSessionRunning(false);
     setSelectedGame(null);
     setGamePhase('home');
@@ -390,6 +389,111 @@ function AppContent() {
     resetVsBattle();
     setGamePhase('vs_battle');
   }, [resetVsBattle, setGamePhase]);
+
+  const handleStartOnBeat = useCallback(() => {
+    setOnBeatResult(null);
+    setOnBeatSessionKey((current) => current + 1);
+    setGamePhase('on_beat_play');
+  }, [setGamePhase]);
+
+  const handleCompleteOnBeat = useCallback(
+    (result: OnBeatResultSummary) => {
+      setOnBeatResult(result);
+      setGamePhase('on_beat_results');
+    },
+    [setGamePhase],
+  );
+
+  const handleReplayOnBeat = useCallback(() => {
+    setOnBeatResult(null);
+    setOnBeatSessionKey((current) => current + 1);
+    setGamePhase('on_beat_play');
+  }, [setGamePhase]);
+
+  const handleChangeOnBeatSetup = useCallback(() => {
+    setGamePhase('on_beat_setup');
+  }, [setGamePhase]);
+
+  const handleStartLyrics = useCallback(() => {
+    if (!lyricsTrack) {
+      return;
+    }
+    setLyricsResult(null);
+    setLyricsSessionKey((current) => current + 1);
+    setGamePhase('lyrics_play');
+  }, [lyricsTrack, setGamePhase]);
+
+  const handleCompleteLyrics = useCallback(
+    (result: LyricsResultSummary) => {
+      setLyricsResult(result);
+      setGamePhase('lyrics_results');
+    },
+    [setGamePhase],
+  );
+
+  const handleReplayLyrics = useCallback(() => {
+    setLyricsResult(null);
+    setLyricsSessionKey((current) => current + 1);
+    setGamePhase('lyrics_play');
+  }, [setGamePhase]);
+
+  const handleChangeLyricsSetup = useCallback(() => {
+    setGamePhase('lyrics_setup');
+  }, [setGamePhase]);
+
+  const handlePlayAgain = useCallback(() => {
+    if (selectedGame === 'vs') {
+      resetVsBattle();
+      setGamePhase('vs_battle');
+      return;
+    }
+    if (selectedGame === 'on_beat') {
+      handleReplayOnBeat();
+      return;
+    }
+    if (selectedGame === 'know_your_lyrics') {
+      handleReplayLyrics();
+      return;
+    }
+    prepareNewRun();
+    setSessionRunning(false);
+    setGamePhase('permissions');
+  }, [
+    handleReplayLyrics,
+    handleReplayOnBeat,
+    prepareNewRun,
+    resetVsBattle,
+    selectedGame,
+    setGamePhase,
+    setSessionRunning,
+  ]);
+
+  const handleChangeSetup = useCallback(() => {
+    if (selectedGame === 'vs') {
+      resetVsBattle();
+      setGamePhase('vs_setup');
+      return;
+    }
+    if (selectedGame === 'on_beat') {
+      handleChangeOnBeatSetup();
+      return;
+    }
+    if (selectedGame === 'know_your_lyrics') {
+      handleChangeLyricsSetup();
+      return;
+    }
+    prepareNewRun();
+    setSessionRunning(false);
+    setGamePhase('setup');
+  }, [
+    handleChangeLyricsSetup,
+    handleChangeOnBeatSetup,
+    prepareNewRun,
+    resetVsBattle,
+    selectedGame,
+    setGamePhase,
+    setSessionRunning,
+  ]);
 
   const handleConnectSpotify = useCallback((playerIndex: number) => {
     void beginSpotifyLogin(playerIndex);
@@ -1258,29 +1362,97 @@ function AppContent() {
           />
         );
 
+      case 'on_beat_setup':
+        return (
+          <OnBeatSetupScreen
+            difficulty={onBeatDifficulty}
+            onDifficultyChange={setOnBeatDifficulty}
+            onStart={handleStartOnBeat}
+            onBackToMenu={handleBackToMenu}
+          />
+        );
+
+      case 'on_beat_play':
+        return (
+          <OnBeatGameScreen
+            key={onBeatSessionKey}
+            sessionId={onBeatSessionKey}
+            difficulty={onBeatDifficulty}
+            onComplete={handleCompleteOnBeat}
+            onBackToSetup={handleChangeOnBeatSetup}
+          />
+        );
+
+      case 'on_beat_results':
+        return onBeatResult ? (
+          <OnBeatResultsScreen
+            result={onBeatResult}
+            onPlayAgain={handleReplayOnBeat}
+            onChangeSetup={handleChangeOnBeatSetup}
+            onBackToMenu={handleBackToMenu}
+          />
+        ) : (
+          <OnBeatSetupScreen
+            difficulty={onBeatDifficulty}
+            onDifficultyChange={setOnBeatDifficulty}
+            onStart={handleStartOnBeat}
+            onBackToMenu={handleBackToMenu}
+          />
+        );
+
+      case 'lyrics_setup':
+        return (
+          <LyricsSetupScreen
+            fallbackTracks={LYRICS_TRACKS}
+            selectedTrack={lyricsTrack}
+            onSelectTrack={setLyricsTrack}
+            onStart={handleStartLyrics}
+            onBackToMenu={handleBackToMenu}
+          />
+        );
+
+      case 'lyrics_play':
+        return lyricsTrack ? (
+          <LyricsGameScreen
+            key={lyricsSessionKey}
+            sessionId={lyricsSessionKey}
+            track={lyricsTrack}
+            onComplete={handleCompleteLyrics}
+            onBackToSetup={handleChangeLyricsSetup}
+          />
+        ) : (
+          <LyricsSetupScreen
+            fallbackTracks={LYRICS_TRACKS}
+            selectedTrack={lyricsTrack}
+            onSelectTrack={setLyricsTrack}
+            onStart={handleStartLyrics}
+            onBackToMenu={handleBackToMenu}
+          />
+        );
+
+      case 'lyrics_results':
+        return lyricsResult ? (
+          <LyricsResultsScreen
+            result={lyricsResult}
+            onPlayAgain={handleReplayLyrics}
+            onChangeSetup={handleChangeLyricsSetup}
+            onBackToMenu={handleBackToMenu}
+          />
+        ) : (
+          <LyricsSetupScreen
+            fallbackTracks={LYRICS_TRACKS}
+            selectedTrack={lyricsTrack}
+            onSelectTrack={setLyricsTrack}
+            onStart={handleStartLyrics}
+            onBackToMenu={handleBackToMenu}
+          />
+        );
+
       case 'vs_placeholder':
         return (
           <ComingSoonScreen
             title="Vs."
             description="Face off in a fast musical showdown."
-            onBack={handleBackToMenu}
-          />
-        );
-
-      case 'on_beat_placeholder':
-        return (
-          <ComingSoonScreen
-            title="On Beat"
-            description="Lock into timing challenges and survive the tempo."
-            onBack={handleBackToMenu}
-          />
-        );
-
-      case 'lyrics_placeholder':
-        return (
-          <ComingSoonScreen
-            title="Know Your Lyrics"
-            description="Finish the line and prove your music memory."
             onBack={handleBackToMenu}
           />
         );

@@ -25,6 +25,7 @@ export interface SpotifyConnection {
   profileName: string;
   spotifyUserId: string;
   savedTracks: SpotifyTrackSummary[];
+  subscription: string;
 }
 
 interface StoredAuthContext {
@@ -134,7 +135,20 @@ export function loadSpotifyConnection(playerIndex: number): SpotifyConnection | 
   }
 
   try {
-    return JSON.parse(raw) as SpotifyConnection;
+    const parsed = JSON.parse(raw) as Partial<SpotifyConnection>;
+    if (!parsed.accessToken || !parsed.profileName || !parsed.spotifyUserId || !Array.isArray(parsed.savedTracks)) {
+      return null;
+    }
+
+    return {
+      accessToken: parsed.accessToken,
+      refreshToken: parsed.refreshToken ?? null,
+      expiresAt: parsed.expiresAt ?? 0,
+      profileName: parsed.profileName,
+      spotifyUserId: parsed.spotifyUserId,
+      savedTracks: parsed.savedTracks,
+      subscription: parsed.subscription || 'unknown',
+    };
   } catch {
     return null;
   }
@@ -223,7 +237,7 @@ function requireAccessToken(connection: SpotifyConnection | null) {
 }
 
 async function fetchProfile(accessToken: string) {
-  return spotifyGet<{ display_name: string | null; id: string }>(accessToken, '/me');
+  return spotifyGet<{ display_name: string | null; id: string; product?: string }>(accessToken, '/me');
 }
 
 async function fetchSavedTracks(accessToken: string) {
@@ -281,6 +295,7 @@ export async function completeSpotifyLoginFromUrl() {
     profileName: profile.display_name || profile.id,
     spotifyUserId: profile.id,
     savedTracks,
+    subscription: profile.product || 'unknown',
   };
 
   saveSpotifyConnection(pending.playerIndex, connection);

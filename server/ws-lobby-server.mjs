@@ -269,6 +269,74 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (message.type === 'publish_on_beat_state') {
+      if (clientState.role !== 'host' || !clientState.lobbyCode) {
+        send(ws, { type: 'error', message: 'Host must join a lobby before publishing On Beat state' });
+        return;
+      }
+
+      for (const [targetWs, targetState] of clients.entries()) {
+        if (targetState.lobbyCode === clientState.lobbyCode) {
+          send(targetWs, {
+            type: 'on_beat_state',
+            state: message.state,
+          });
+        }
+      }
+      return;
+    }
+
+    if (message.type === 'submit_on_beat_attempt') {
+      if (clientState.role !== 'phone' || !clientState.lobbyCode) {
+        send(ws, { type: 'error', message: 'Phone must be paired before sending an On Beat attempt' });
+        return;
+      }
+
+      for (const [targetWs, targetState] of clients.entries()) {
+        if (targetState.lobbyCode === clientState.lobbyCode) {
+          send(targetWs, {
+            type: 'on_beat_attempt_recorded',
+            attempt: message.attempt,
+          });
+        }
+      }
+      return;
+    }
+
+    if (message.type === 'publish_lyrics_state') {
+      if (clientState.role !== 'host' || !clientState.lobbyCode) {
+        send(ws, { type: 'error', message: 'Host must join a lobby before publishing lyrics state' });
+        return;
+      }
+
+      for (const [targetWs, targetState] of clients.entries()) {
+        if (targetState.lobbyCode === clientState.lobbyCode) {
+          send(targetWs, {
+            type: 'lyrics_state',
+            state: message.state,
+          });
+        }
+      }
+      return;
+    }
+
+    if (message.type === 'submit_lyrics_attempt') {
+      if (clientState.role !== 'phone' || !clientState.lobbyCode) {
+        send(ws, { type: 'error', message: 'Phone must be paired before sending a lyrics attempt' });
+        return;
+      }
+
+      for (const [targetWs, targetState] of clients.entries()) {
+        if (targetState.lobbyCode === clientState.lobbyCode) {
+          send(targetWs, {
+            type: 'lyrics_attempt_recorded',
+            attempt: message.attempt,
+          });
+        }
+      }
+      return;
+    }
+
     send(ws, { type: 'error', message: 'Unknown message type' });
   });
 

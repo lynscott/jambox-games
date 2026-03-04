@@ -9,14 +9,18 @@ export type GamePhase =
   | 'vs_setup'
   | 'vs_battle'
   | 'vs_results'
+  | 'on_beat_setup'
+  | 'on_beat_play'
+  | 'on_beat_results'
+  | 'lyrics_setup'
+  | 'lyrics_play'
+  | 'lyrics_results'
   | 'permissions'
   | 'calibration'
   | 'tutorial'
   | 'jam'
   | 'results'
-  | 'vs_placeholder'
-  | 'on_beat_placeholder'
-  | 'lyrics_placeholder';
+  | 'vs_placeholder';
 
 export type GameSelection = 'jam_hero' | 'vs' | 'on_beat' | 'know_your_lyrics';
 

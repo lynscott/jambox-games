@@ -21,7 +21,7 @@ describe('App home flow', () => {
     expect(screen.getByRole('button', { name: /choose game/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /choose game/i }));
-    expect(screen.getByRole('heading', { name: /jam box games/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /jam box games logo/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /^vs\.$/i }));
     expect(screen.getByRole('heading', { name: /verzuz with your friends/i })).toBeInTheDocument();
@@ -69,5 +69,28 @@ describe('App home flow', () => {
     render(<App />);
 
     expect(rafSpy).not.toHaveBeenCalled();
+  });
+
+  it('routes On Beat into its setup screen', () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /choose game/i }));
+    fireEvent.click(screen.getByRole('button', { name: /on beat/i }));
+
+    expect(screen.getByRole('heading', { name: /on beat challenge/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /start on beat/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /start on beat/i }));
+    expect(screen.getByRole('button', { name: /start challenge/i })).toBeInTheDocument();
+  });
+
+  it('routes Know Your Lyrics into its setup screen', () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /choose game/i }));
+    fireEvent.click(screen.getByRole('button', { name: /know your lyrics/i }));
+
+    expect(screen.getByRole('heading', { name: /lyrics challenge setup/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /start lyrics mode/i })).toBeInTheDocument();
   });
 });

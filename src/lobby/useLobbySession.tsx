@@ -8,7 +8,15 @@ import {
   type ReactNode,
 } from 'react';
 import { LobbyClient } from '../network/lobbyClient';
-import type { LobbySnapshot, RoomSnapshot, ServerMessage } from '../network/lobbyProtocol';
+import type {
+  LyricsAttemptSnapshot,
+  LyricsLiveState,
+  LobbySnapshot,
+  OnBeatAttemptSnapshot,
+  OnBeatLiveState,
+  RoomSnapshot,
+  ServerMessage,
+} from '../network/lobbyProtocol';
 
 const DEFAULT_WS_URL = 'ws://localhost:8080';
 
@@ -36,6 +44,10 @@ interface LobbySessionValue {
   pairedRoom: RoomSnapshot | null;
   playerSlot: 1 | 2 | null;
   selectedTracks: Record<number, SelectedTrackPayload | null>;
+  onBeatState: OnBeatLiveState | null;
+  onBeatAttempts: OnBeatAttemptSnapshot[];
+  lyricsState: LyricsLiveState | null;
+  lyricsAttempts: LyricsAttemptSnapshot[];
   connect: () => void;
   disconnect: () => void;
   createLobby: () => void;
@@ -43,6 +55,10 @@ interface LobbySessionValue {
   leaveLobby: () => void;
   pairPhone: (slot?: 1 | 2) => void;
   sendSelectedTrack: (payload: SelectedTrackPayload) => void;
+  publishOnBeatState: (state: OnBeatLiveState) => void;
+  sendOnBeatAttempt: (attempt: OnBeatAttemptSnapshot) => void;
+  publishLyricsState: (state: LyricsLiveState) => void;
+  sendLyricsAttempt: (attempt: LyricsAttemptSnapshot) => void;
 }
 
 const LobbySessionContext = createContext<LobbySessionValue | null>(null);
@@ -56,6 +72,10 @@ export function LobbySessionProvider({ children }: { children: ReactNode }) {
   const [pairedRoom, setPairedRoom] = useState<RoomSnapshot | null>(null);
   const [playerSlot, setPlayerSlot] = useState<1 | 2 | null>(null);
   const [selectedTracks, setSelectedTracks] = useState<Record<number, SelectedTrackPayload | null>>({});
+  const [onBeatState, setOnBeatState] = useState<OnBeatLiveState | null>(null);
+  const [onBeatAttempts, setOnBeatAttempts] = useState<OnBeatAttemptSnapshot[]>([]);
+  const [lyricsState, setLyricsState] = useState<LyricsLiveState | null>(null);
+  const [lyricsAttempts, setLyricsAttempts] = useState<LyricsAttemptSnapshot[]>([]);
 
   const wsUrl = useMemo(() => import.meta.env.VITE_WS_URL || DEFAULT_WS_URL, []);
   const clientRef = useRef<LobbyClient | null>(null);
@@ -111,11 +131,64 @@ export function LobbySessionProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        if (incoming.type === 'on_beat_state') {
+          setOnBeatState(incoming.state);
+          if (!incoming.state || incoming.state.status === 'ready') {
+            setOnBeatAttempts([]);
+          }
+          return;
+        }
+
+        if (incoming.type === 'on_beat_attempt_recorded') {
+          setOnBeatAttempts((current) => {
+            const key = `${incoming.attempt.sessionId}:${incoming.attempt.playerSlot}:${incoming.attempt.promptIndex}`;
+            if (
+              current.some(
+                (attempt) =>
+                  `${attempt.sessionId}:${attempt.playerSlot}:${attempt.promptIndex}` === key,
+              )
+            ) {
+              return current;
+            }
+
+            return [...current, incoming.attempt];
+          });
+          return;
+        }
+
+        if (incoming.type === 'lyrics_state') {
+          setLyricsState(incoming.state);
+          if (!incoming.state || incoming.state.status === 'ready') {
+            setLyricsAttempts([]);
+          }
+          return;
+        }
+
+        if (incoming.type === 'lyrics_attempt_recorded') {
+          setLyricsAttempts((current) => {
+            const key = `${incoming.attempt.sessionId}:${incoming.attempt.playerSlot}:${incoming.attempt.cueIndex}:${incoming.attempt.transcript}`;
+            if (
+              current.some(
+                (attempt) =>
+                  `${attempt.sessionId}:${attempt.playerSlot}:${attempt.cueIndex}:${attempt.transcript}` === key,
+              )
+            ) {
+              return current;
+            }
+            return [...current, incoming.attempt];
+          });
+          return;
+        }
+
         if (incoming.type === 'left_lobby') {
           setLobby(null);
           setPairedRoom(null);
           setPlayerSlot(null);
           setSelectedTracks({});
+          setOnBeatState(null);
+          setOnBeatAttempts([]);
+          setLyricsState(null);
+          setLyricsAttempts([]);
           setMessage('Left lobby');
           return;
         }
@@ -150,6 +223,10 @@ export function LobbySessionProvider({ children }: { children: ReactNode }) {
     pairedRoom,
     playerSlot,
     selectedTracks,
+    onBeatState,
+    onBeatAttempts,
+    lyricsState,
+    lyricsAttempts,
     connect: () => clientRef.current?.connect(),
     disconnect: () => clientRef.current?.disconnect(),
     createLobby: () => clientRef.current?.send({ type: 'create_lobby' }),
@@ -183,6 +260,26 @@ export function LobbySessionProvider({ children }: { children: ReactNode }) {
         trackName: payload.trackName,
         artistNames: payload.artistNames,
         uri: payload.uri,
+      }),
+    publishOnBeatState: (state) =>
+      clientRef.current?.send({
+        type: 'publish_on_beat_state',
+        state,
+      }),
+    sendOnBeatAttempt: (attempt) =>
+      clientRef.current?.send({
+        type: 'submit_on_beat_attempt',
+        attempt,
+      }),
+    publishLyricsState: (state) =>
+      clientRef.current?.send({
+        type: 'publish_lyrics_state',
+        state,
+      }),
+    sendLyricsAttempt: (attempt) =>
+      clientRef.current?.send({
+        type: 'submit_lyrics_attempt',
+        attempt,
       }),
   };
 

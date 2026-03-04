@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "ws:server": "node server/ws-lobby-server.mjs",
+    "lyrics:import": "node server/import-lyrics-track.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",

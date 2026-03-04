@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLobbySession } from '../../lobby/useLobbySession';
 import type { DeviceRole } from '../../network/lobbyProtocol';
 
@@ -14,8 +14,34 @@ function getJoinUrl(lobbyCode: string, playerSlot: 1 | 2) {
   return url.toString();
 }
 
+function getDefaultRole(): DeviceRole {
+  if (typeof window === 'undefined') {
+    return 'host';
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('mode') === 'phone') {
+    return 'phone';
+  }
+
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  if (/android|iphone|ipad|ipod|mobile/.test(userAgent)) {
+    return 'phone';
+  }
+
+  const isCoarsePointer =
+    typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+
+  if (isCoarsePointer && window.innerWidth <= 900) {
+    return 'phone';
+  }
+
+  return 'host';
+}
+
 export function LobbyPairingPanel() {
-  const [role, setRole] = useState<DeviceRole>('host');
+  const [role, setRole] = useState<DeviceRole>(() => getDefaultRole());
+  const [phonePlayerSlot, setPhonePlayerSlot] = useState<1 | 2>(1);
   const {
     socketStatus,
     message,
@@ -26,6 +52,7 @@ export function LobbyPairingPanel() {
     phoneName,
     setPhoneName,
     pairedRoom,
+    playerSlot,
     connect,
     disconnect,
     createLobby,
@@ -44,6 +71,24 @@ export function LobbyPairingPanel() {
       player2Url: getJoinUrl(lobby.code, 2),
     };
   }, [accessPoint, lobby?.code]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || role !== 'phone' || !pairedRoom || !playerSlot) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'phone') {
+      return;
+    }
+
+    const lobbyCode = lobby?.code || lobbyCodeInput;
+    if (!lobbyCode) {
+      return;
+    }
+
+    window.location.assign(getJoinUrl(lobbyCode, playerSlot));
+  }, [lobby?.code, lobbyCodeInput, pairedRoom, playerSlot, role]);
 
   return (
     <section className="lobby-panel" aria-label="Lobby and Phone Pairing">
@@ -128,8 +173,26 @@ export function LobbyPairingPanel() {
             />
           </label>
 
+          <div className="lobby-panel__role">
+            <label>
+              <span>Player Slot</span>
+              <select
+                aria-label="Player Slot"
+                value={String(phonePlayerSlot)}
+                onChange={(event) => setPhonePlayerSlot(Number(event.currentTarget.value) as 1 | 2)}
+              >
+                <option value="1">Player 1</option>
+                <option value="2">Player 2</option>
+              </select>
+            </label>
+          </div>
+
           <div className="lobby-panel__actions">
-            <button type="button" className="phase-action phase-action--primary" onClick={() => pairPhone()}>
+            <button
+              type="button"
+              className="phase-action phase-action--primary"
+              onClick={() => pairPhone(phonePlayerSlot)}
+            >
               Pair Phone
             </button>
           </div>
