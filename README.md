@@ -136,7 +136,7 @@ The command downloads audio to `public/audio/lyrics/<track-id>.mp3` and injects 
 
 `Know Your Lyrics` now supports live YouTube instrumental browsing and search in the setup screen.
 
-- Add `VITE_YOUTUBE_API_KEY` to your local env to enable YouTube search/top results.
+- Add `VITE_YOUTUBE_API_KEY` or `VITE_YOUTUBE_KEY` to your local env to enable YouTube search/top results.
 - Song search uses YouTube Data API `search.list` plus `videos.list`.
 - Lyrics are fetched on selection from `lyrics.ovh`, then split into blind scoring rounds automatically.
 

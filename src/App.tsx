@@ -1215,11 +1215,13 @@ function AppContent() {
     const mode = params.get('mode');
     const lobbyCode = params.get('lobby') || '';
     const player = Number(params.get('player'));
+    const routeGame = parseGameSelection(params.get('game'));
 
     return {
       isPhoneMode: mode === 'phone' && Boolean(lobbyCode) && (player === 1 || player === 2),
       lobbyCode,
       playerSlot: player === 1 || player === 2 ? (player as 1 | 2) : null,
+      expectedGame: routeGame,
     };
   }, [phoneQuery]);
 
@@ -1281,6 +1283,7 @@ function AppContent() {
         <PhonePlayerScreen
           lobbyCode={phoneParams.lobbyCode}
           playerSlot={phoneParams.playerSlot}
+          expectedGame={phoneParams.expectedGame}
         />
       );
     }
@@ -1363,7 +1366,6 @@ function AppContent() {
         return (
           <OnBeatSetupScreen
             difficulty={onBeatDifficulty}
-            onDifficultyChange={setOnBeatDifficulty}
             onStart={handleStartOnBeat}
             onBackToMenu={handleBackToMenu}
           />
@@ -1391,7 +1393,6 @@ function AppContent() {
         ) : (
           <OnBeatSetupScreen
             difficulty={onBeatDifficulty}
-            onDifficultyChange={setOnBeatDifficulty}
             onStart={handleStartOnBeat}
             onBackToMenu={handleBackToMenu}
           />
