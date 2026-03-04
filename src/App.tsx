@@ -286,10 +286,6 @@ function AppContent() {
     setGamePhase('lobby');
   }, [setGamePhase]);
 
-  const handleOpenGameLauncher = useCallback(() => {
-    setGamePhase('home');
-  }, [setGamePhase]);
-
   const handleSelectGame = useCallback(
     (gameId: GameSelection) => {
       prepareNewRun();
@@ -505,20 +501,6 @@ function AppContent() {
       current.map((connection, index) => (index === playerIndex ? null : connection)),
     );
   }, []);
-
-  const handleSelectVsRoundTrack = useCallback(
-    (trackId: string) => {
-      const currentPlayer = vsRoundIndex % 2 === 0 ? 0 : 1;
-      const track =
-        vsSpotifyConnections[currentPlayer]?.savedTracks.find((item) => item.id === trackId) || null;
-
-      setVsRoundTracks((current) => ({
-        ...current,
-        [vsRoundIndex + 1]: track,
-      }));
-    },
-    [vsRoundIndex, vsSpotifyConnections],
-  );
 
   const handleAwardVsRound = useCallback(
     (winner: 'player1' | 'player2' | 'tie') => {
@@ -1237,7 +1219,7 @@ function AppContent() {
     return {
       isPhoneMode: mode === 'phone' && Boolean(lobbyCode) && (player === 1 || player === 2),
       lobbyCode,
-      playerSlot: player === 1 || player === 2 ? player : null,
+      playerSlot: player === 1 || player === 2 ? (player as 1 | 2) : null,
     };
   }, [phoneQuery]);
 
@@ -1306,11 +1288,17 @@ function AppContent() {
     switch (gamePhase) {
       case 'lobby':
         return (
-          <LobbyScreen onContinueToGames={handleOpenGameLauncher} onOpenGame={handleSelectGame} />
+          <LobbyScreen onOpenGame={handleSelectGame} onBackToMainMenu={handleBackToMenu} />
         );
 
       case 'home':
-        return <HomeScreen onSelectGame={handleSelectGame} onBackToLobby={handleOpenLobby} />;
+        return (
+          <HomeScreen
+            onSelectGame={handleSelectGame}
+            onOpenLobby={handleOpenLobby}
+            connectedPlayerCount={accessPoint?.phoneCount ?? 0}
+          />
+        );
 
       case 'setup':
         return <SetupScreen onStartSession={handleSetupStart} onBackToMenu={handleBackToMenu} />;
@@ -1343,7 +1331,16 @@ function AppContent() {
             roundCount={vsRoundCount}
             currentCategory={vsRoundDeck[vsRoundIndex] || 'Best Collaboration'}
             history={vsRoundHistory}
-            currentTrack={selectedTracks[(vsRoundIndex % 2) + 1] || vsRoundTracks[vsRoundIndex + 1] || null}
+            currentTrack={
+              selectedTracks[(vsRoundIndex % 2) + 1]
+                ? {
+                    id: selectedTracks[(vsRoundIndex % 2) + 1]!.trackId,
+                    name: selectedTracks[(vsRoundIndex % 2) + 1]!.trackName,
+                    artistNames: selectedTracks[(vsRoundIndex % 2) + 1]!.artistNames,
+                    uri: selectedTracks[(vsRoundIndex % 2) + 1]!.uri,
+                  }
+                : vsRoundTracks[vsRoundIndex + 1] || null
+            }
             onAwardRound={handleAwardVsRound}
             onBackToSetup={handleChangeSetup}
           />
@@ -1506,6 +1503,14 @@ function AppContent() {
           <JamScreen
             onToggleSession={handleToggleSession}
             arrangement={loopArrangement}
+            sectionCallout={loopArrangement.callout}
+            nextSectionCallout={
+              loopArrangement.nextSection
+                ? loopArrangement.nextSection === 'solo' && loopArrangement.nextFocusZone
+                  ? `Next SOLO ${loopArrangement.nextFocusZone.toUpperCase()}`
+                  : `Next ${loopArrangement.nextSection}`
+                : null
+            }
             countdownSecond={countdownUrgentSecond}
           >
             {renderLiveStage()}

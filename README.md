@@ -174,18 +174,19 @@ VITE_YOUTUBE_API_KEY=your_key_here
 
 ```bash
 npm run dev
-npm run ws:server
 npm run test
 npm run build
 ```
 
 ## WebSocket Lobby + Pairing
 
-- Run `npm run ws:server` to start the lobby server on `ws://localhost:8080`.
+- `npm run dev` now starts both the Vite app server and the lobby WebSocket server together.
+- The browser connects to the lobby over the same app origin at `/ws`, so phone pairing works over local network URLs and Cloudflare tunnels without exposing a second public port.
 - In the app Setup screen, use **Lobby + Phone Pairing**:
   - Host/TV: connect, create a lobby, create one or more rooms.
   - Phone: connect, enter lobby code + room pair code, then pair.
-- Override socket URL in frontend with `VITE_WS_URL`, for example `VITE_WS_URL=ws://192.168.1.20:8080`.
+- Override socket URL in frontend with `VITE_WS_URL` only if you need a custom endpoint.
+- If you tunnel the app with Cloudflare, use the tunneled app URL on the phone. The `/ws` socket will ride the same origin automatically.
 
 ## Notes
 

@@ -14,9 +14,10 @@ function safeNumber(value: unknown, fallback = 0): number {
 
 interface TopHUDProps {
   sectionCallout: string;
+  nextSectionCallout: string | null;
 }
 
-export function TopHUD({ sectionCallout }: TopHUDProps) {
+export function TopHUD({ sectionCallout, nextSectionCallout }: TopHUDProps) {
   const timeRemaining = useAppStore((s) => s.jamTimeRemainingMs);
   const score = useAppStore((s) => s.score);
   const chord = useAppStore((s) => s.diagnostics.currentChord);
@@ -50,6 +51,7 @@ export function TopHUD({ sectionCallout }: TopHUDProps) {
       <div className="hud-chord">{chord}</div>
 
       <div className="hud-cue">{sectionCallout}</div>
+      {nextSectionCallout ? <div className="hud-next">{nextSectionCallout}</div> : null}
     </header>
   );
 }

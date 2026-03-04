@@ -150,7 +150,7 @@ export const createInitialState = () => ({
     middle: null,
     right: null,
   },
-  gamePhase: 'lobby' as const,
+  gamePhase: 'home' as const,
   currentTrackId: MIDNIGHT_SOUL_TRACK.id,
   selectedGame: null,
   jamDurationSec: 60 as const,

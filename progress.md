@@ -194,3 +194,26 @@ Original prompt: checkout the changes we made to improve the UI below. we implem
 - Verification:
   - `npm run test` passing (`34` files / `85` tests)
   - `npm run build` passing
+
+## Section Cue Review Follow-up
+- Reviewed the uncommitted section-cue implementation against `docs/plans/2026-03-04-jam-hero-section-cues-implementation.md`.
+- Root-cause evidence:
+  - preview lanes marked `up_next` were also being treated as inactive via `activeZones`, so the upcoming soloist could be muted during the final harmony beat.
+  - `evaluateSectionCompliance('up_next')` also blocked scoring/audio, which doubled the regression.
+- Added failing tests first:
+  - `src/game/arrangement.test.ts` now asserts preview windows keep all harmony lanes active.
+  - `src/game/section-scoring.test.ts` now asserts `up_next` is allowed and non-penalized.
+- Implemented the minimal runtime fix:
+  - `src/game/arrangement.ts` now keeps any non-`wait` lane active.
+  - `src/game/section-scoring.ts` now treats `up_next` as allowed/scored instead of blocked.
+- Backfilled missing validation that the review called out:
+  - `src/components/jam/TopHUD.test.tsx` asserts current/next section cues render.
+  - `src/components/screens/JamScreen.test.tsx` asserts the section preview banner renders while the old timeline stays absent.
+  - `src/music/instruments.test.ts` now mocks `tone` and verifies the public `triggerWrong()` contract.
+- Verification:
+  - `npm test` passing (`35` files / `93` tests)
+  - `npm run build` passing
+  - browser smoke via web-game client:
+    - `output/review-section-cues/shot-0.png`
+    - `output/review-section-cues/state-0.json`
+    - no console/page errors reported by the Playwright client

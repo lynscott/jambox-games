@@ -21,14 +21,16 @@ describe('TopHUD', () => {
       } as never,
     });
 
-    render(<TopHUD sectionCallout="Harmony" />);
+    render(<TopHUD sectionCallout="Harmony" nextSectionCallout="Next solo" />);
 
     expect(screen.getByText('0')).toBeInTheDocument();
     expect(screen.getByText('-')).toBeInTheDocument();
+    expect(screen.getByText('Harmony')).toBeInTheDocument();
+    expect(screen.getByText('Next solo')).toBeInTheDocument();
   });
 
   it('does not render the metronome strike indicator', () => {
-    render(<TopHUD sectionCallout="Harmony" />);
+    render(<TopHUD sectionCallout="Harmony" nextSectionCallout={null} />);
 
     expect(screen.queryByText('HIT')).not.toBeInTheDocument();
     expect(screen.queryByText('READY')).not.toBeInTheDocument();

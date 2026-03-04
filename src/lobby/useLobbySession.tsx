@@ -18,10 +18,21 @@ import type {
   ServerMessage,
 } from '../network/lobbyProtocol';
 
-const DEFAULT_WS_URL = 'ws://localhost:8080';
-
 function normalizeCode(value: string) {
   return value.trim().toUpperCase();
+}
+
+function defaultWsUrl() {
+  if (typeof window === 'undefined') {
+    return 'ws://localhost:5173/ws';
+  }
+
+  const origin = new URL(window.location.origin);
+  origin.protocol = origin.protocol === 'https:' ? 'wss:' : 'ws:';
+  origin.pathname = '/ws';
+  origin.search = '';
+  origin.hash = '';
+  return origin.toString();
 }
 
 export interface SelectedTrackPayload {
@@ -77,7 +88,7 @@ export function LobbySessionProvider({ children }: { children: ReactNode }) {
   const [lyricsState, setLyricsState] = useState<LyricsLiveState | null>(null);
   const [lyricsAttempts, setLyricsAttempts] = useState<LyricsAttemptSnapshot[]>([]);
 
-  const wsUrl = useMemo(() => import.meta.env.VITE_WS_URL || DEFAULT_WS_URL, []);
+  const wsUrl = useMemo(() => import.meta.env.VITE_WS_URL || defaultWsUrl(), []);
   const clientRef = useRef<LobbyClient | null>(null);
   const accessPoint = lobby?.rooms[0] || null;
 

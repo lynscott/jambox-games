@@ -9,8 +9,11 @@ interface LobbyClientOptions {
 
 export class LobbyClient {
   private socket: WebSocket | null = null;
+  private readonly options: LobbyClientOptions;
 
-  constructor(private readonly options: LobbyClientOptions) {}
+  constructor(options: LobbyClientOptions) {
+    this.options = options;
+  }
 
   connect() {
     if (this.socket && this.socket.readyState <= WebSocket.OPEN) {

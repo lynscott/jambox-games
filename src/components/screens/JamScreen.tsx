@@ -8,22 +8,38 @@ import { GearMenu } from '../jam/GearMenu';
 interface JamScreenProps {
   onToggleSession: () => void;
   arrangement: LoopArrangement;
+  sectionCallout: string;
+  nextSectionCallout: string | null;
   countdownSecond: number | null;
+  trackView?: ReactNode;
   children: ReactNode; // camera + overlay
 }
 
 export function JamScreen({
   onToggleSession,
   arrangement,
+  sectionCallout,
+  nextSectionCallout,
   countdownSecond,
+  trackView,
   children,
 }: JamScreenProps) {
+  const sectionPreview = nextSectionCallout ? (
+    <div className="section-banner" aria-label="Section Preview">
+      <span className="section-banner__current">{sectionCallout}</span>
+      <span className="section-banner__next">{nextSectionCallout}</span>
+    </div>
+  ) : null;
+
   return (
     <div className="jam-screen">
-      <TopHUD sectionCallout={arrangement.callout} />
+      <TopHUD sectionCallout={sectionCallout} nextSectionCallout={nextSectionCallout} />
+
+      {sectionPreview}
 
       <div className="jam-stage">
         {children}
+        {trackView}
         {countdownSecond !== null ? (
           <div
             className={`jam-countdown${countdownSecond <= 3 ? ' jam-countdown--critical' : ''}`}
@@ -36,7 +52,7 @@ export function JamScreen({
         <GearMenu onToggleSession={onToggleSession} />
       </div>
 
-      <LaneBar lanePlayable={arrangement.activeZones} />
+      <LaneBar lanePlayable={arrangement.activeZones} roleStates={arrangement.roleStates} />
     </div>
   );
 }

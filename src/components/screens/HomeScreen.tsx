@@ -2,10 +2,11 @@ import { GAME_CATALOG } from '../../game/catalog';
 import type { GameSelection } from '../../types';
 interface HomeScreenProps {
   onSelectGame: (gameId: GameSelection) => void;
-  onBackToLobby: () => void;
+  onOpenLobby: () => void;
+  connectedPlayerCount: number;
 }
 
-export function HomeScreen({ onSelectGame, onBackToLobby }: HomeScreenProps) {
+export function HomeScreen({ onSelectGame, onOpenLobby, connectedPlayerCount }: HomeScreenProps) {
   return (
     <section className="phase-screen home-screen" aria-label="Home Screen">
       <div className="home-brand">
@@ -18,11 +19,15 @@ export function HomeScreen({ onSelectGame, onBackToLobby }: HomeScreenProps) {
         </div>
         <p className="phase-kicker">Arcade Music Collection</p>
         <p className="phase-copy home-screen__copy">
-          Pick the game flow for this room. Lobby and phone pairing now live on their own screen.
+          Choose a game to play.
         </p>
-        <button type="button" className="phase-action home-screen__back" onClick={onBackToLobby}>
-          Back To Lobby
-        </button>
+        {connectedPlayerCount > 0 ? (
+          <p className="home-screen__lobby-status">Connected players: {connectedPlayerCount}</p>
+        ) : (
+          <button type="button" className="phase-action home-screen__back" onClick={onOpenLobby}>
+            Go To Lobby
+          </button>
+        )}
       </div>
 
       <div className="home-grid">
@@ -70,13 +75,6 @@ export function HomeScreen({ onSelectGame, onBackToLobby }: HomeScreenProps) {
             <div className="home-card__body">
               <div className="home-card__header">
                 <h2 className="home-card__title">{game.title}</h2>
-                <span
-                  className={`home-card__status${
-                    game.status === 'Available' ? ' home-card__status--live' : ''
-                  }`}
-                >
-                  {game.status}
-                </span>
               </div>
               <p className="home-card__description">{game.shortDescription}</p>
               <p className="home-card__detail">{game.detail}</p>

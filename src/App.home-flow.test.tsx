@@ -18,9 +18,9 @@ describe('App home flow', () => {
     render(<App />);
 
     expect(screen.getByRole('heading', { level: 1, name: /lobby \+ phone pairing/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /choose game/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /back to main menu/i })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /choose game/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to main menu/i }));
     expect(screen.getByRole('img', { name: /jam box games logo/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /^vs\.$/i }));
@@ -74,7 +74,7 @@ describe('App home flow', () => {
   it('routes On Beat into its setup screen', () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: /choose game/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to main menu/i }));
     fireEvent.click(screen.getByRole('button', { name: /on beat/i }));
 
     expect(screen.getByRole('heading', { name: /on beat challenge/i })).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe('App home flow', () => {
   it('routes Know Your Lyrics into its setup screen', () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: /choose game/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to main menu/i }));
     fireEvent.click(screen.getByRole('button', { name: /know your lyrics/i }));
 
     expect(screen.getByRole('heading', { name: /lyrics challenge setup/i })).toBeInTheDocument();

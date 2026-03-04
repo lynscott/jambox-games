@@ -2,11 +2,11 @@ import { LobbyPairingPanel } from '../lobby/LobbyPairingPanel';
 import type { GameSelection } from '../../types';
 
 interface LobbyScreenProps {
-  onContinueToGames: () => void;
   onOpenGame: (gameId: GameSelection) => void;
+  onBackToMainMenu: () => void;
 }
 
-export function LobbyScreen({ onContinueToGames, onOpenGame }: LobbyScreenProps) {
+export function LobbyScreen({ onOpenGame, onBackToMainMenu }: LobbyScreenProps) {
   return (
     <section className="phase-screen lobby-screen" aria-label="Lobby Screen">
       <div className="lobby-screen__hero">
@@ -22,11 +22,11 @@ export function LobbyScreen({ onContinueToGames, onOpenGame }: LobbyScreenProps)
       </div>
 
       <div className="phase-actions lobby-screen__actions">
+        <button type="button" className="phase-action" onClick={onBackToMainMenu}>
+          Back To Main Menu
+        </button>
         <button type="button" className="phase-action phase-action--primary" onClick={() => onOpenGame('vs')}>
           Go To Verzuz
-        </button>
-        <button type="button" className="phase-action" onClick={onContinueToGames}>
-          Choose Game
         </button>
       </div>
     </section>

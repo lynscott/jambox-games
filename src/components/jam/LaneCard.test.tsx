@@ -17,51 +17,59 @@ function lane(overrides: Partial<LaneState>): LaneState {
 }
 
 describe('LaneCard', () => {
-  it('renders stable gameplay statuses instead of flashing beat cues', () => {
+  it('shows player section roles as primary cue states', () => {
     const { rerender } = render(
       <LaneCard
         zone="left"
         lane={lane({ occupied: false, status: 'no_player' })}
         lanePlayable={true}
+        roleState="play"
       />,
     );
 
-    expect(screen.getByText('NO PLAYER')).toBeInTheDocument();
+    expect(screen.getAllByText('NO PLAYER').length).toBeGreaterThanOrEqual(2);
 
     rerender(
       <LaneCard
         zone="left"
-        lane={lane({ status: 'get_ready' })}
+        lane={lane({ status: 'get_ready', occupied: true })}
         lanePlayable={true}
+        roleState="wait"
       />,
     );
-    expect(screen.getByText('GET READY')).toBeInTheDocument();
+    expect(screen.getByText('WAIT')).toBeInTheDocument();
 
     rerender(
       <LaneCard
         zone="left"
-        lane={lane({ status: 'hold', gesturePhase: 'armed' })}
+        lane={lane({ status: 'get_ready', occupied: true })}
         lanePlayable={true}
+        roleState="play"
       />,
     );
-    expect(screen.getByText('HOLD')).toBeInTheDocument();
+    expect(screen.getByText('PLAY')).toBeInTheDocument();
 
     rerender(
       <LaneCard
         zone="left"
-        lane={lane({ status: 'hit', gesturePhase: 'cooldown' })}
+        lane={lane({ status: 'get_ready', occupied: true })}
         lanePlayable={true}
+        roleState="up_next"
       />,
     );
-    expect(screen.getByText('HIT')).toBeInTheDocument();
+    expect(screen.getByText('UP NEXT')).toBeInTheDocument();
+  });
 
-    rerender(
+  it('keeps gesture status as secondary feedback', () => {
+    render(
       <LaneCard
         zone="right"
-        lane={lane({ instrument: 'keys', status: 'sustain', gesturePhase: 'active' })}
+        lane={lane({ status: 'sustain', gesturePhase: 'active', instrument: 'keys', occupied: true })}
         lanePlayable={true}
+        roleState="play"
       />,
     );
+
     expect(screen.getByText('SUSTAIN')).toBeInTheDocument();
   });
 });

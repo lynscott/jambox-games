@@ -4,6 +4,7 @@ export interface GarageBandInstruments {
   triggerHat: (time: number, velocity?: number) => void;
   triggerBass: (note: string, time: number, velocity?: number) => void;
   triggerPad: (notes: string[], time: number, velocity?: number, filterCutoff?: number) => void;
+  triggerWrong: (time: number, velocity?: number) => void;
   dispose: () => void;
 }
 
@@ -64,6 +65,14 @@ export async function createInstruments(): Promise<GarageBandInstruments> {
   );
   const nextHat = createRoundRobinVoicePool(hatVoices);
 
+  const wrongVoices = Array.from({ length: 2 }, () =>
+    new Tone.Synth({
+      oscillator: { type: 'triangle' as const },
+      envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.05 },
+    }).toDestination(),
+  );
+  const nextWrong = createRoundRobinVoicePool(wrongVoices);
+
   const bassVoices = Array.from({ length: 2 }, () =>
     new Tone.MonoSynth(MIDNIGHT_SOUL_PATCHES.bass).toDestination(),
   );
@@ -88,10 +97,12 @@ export async function createInstruments(): Promise<GarageBandInstruments> {
       padFilter.frequency.rampTo(filterCutoff, 0.05, time);
       pad.triggerAttackRelease(notes, '1n', time, velocity);
     },
+    triggerWrong: (time, velocity = 0.5) => nextWrong().triggerAttackRelease('A1', '16n', time, velocity),
     dispose: () => {
       kickVoices.forEach((voice) => voice.dispose());
       snareVoices.forEach((voice) => voice.dispose());
       hatVoices.forEach((voice) => voice.dispose());
+      wrongVoices.forEach((voice) => voice.dispose());
       bassVoices.forEach((voice) => voice.dispose());
       pad.dispose();
       padFilter.dispose();

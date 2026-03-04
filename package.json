@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node server/dev.mjs",
+    "dev:web": "vite --host 0.0.0.0",
     "ws:server": "node server/ws-lobby-server.mjs",
     "lyrics:import": "node server/import-lyrics-track.mjs",
     "build": "tsc -b && vite build",

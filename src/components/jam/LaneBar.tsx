@@ -1,4 +1,5 @@
 import { useAppStore } from '../../state/store';
+import type { LaneRoleState } from '../../game/arrangement';
 import type { ZoneId } from '../../types';
 import { LaneCard } from './LaneCard';
 
@@ -6,9 +7,10 @@ const ZONES: ZoneId[] = ['left', 'middle', 'right'];
 
 interface LaneBarProps {
   lanePlayable: Record<ZoneId, boolean>;
+  roleStates: Record<ZoneId, LaneRoleState>;
 }
 
-export function LaneBar({ lanePlayable }: LaneBarProps) {
+export function LaneBar({ lanePlayable, roleStates }: LaneBarProps) {
   const lanes = useAppStore((s) => s.lanes);
 
   return (
@@ -19,6 +21,7 @@ export function LaneBar({ lanePlayable }: LaneBarProps) {
           zone={zone}
           lane={lanes[zone]}
           lanePlayable={lanePlayable[zone]}
+          roleState={roleStates[zone]}
         />
       ))}
     </footer>

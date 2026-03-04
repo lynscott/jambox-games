@@ -11,10 +11,14 @@ function arrangement(overrides: Partial<LoopArrangement> = {}): LoopArrangement 
     beatInBar: 1,
     cycleProgress: 0.56,
     section: 'solo',
+    nextSection: 'blend',
     focusZone: 'left',
     cycleSoloZone: 'left',
+    roleStates: { left: 'play', middle: 'wait', right: 'wait' },
+    beatsUntilTransition: 7,
     activeZones: { left: true, middle: false, right: false },
     callout: 'Solo: Left',
+    nextFocusZone: 'middle',
     ...overrides,
   };
 }

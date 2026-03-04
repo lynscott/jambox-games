@@ -41,6 +41,7 @@ function createInstrumentsDouble(): GarageBandInstruments {
     triggerHat: vi.fn(),
     triggerBass: vi.fn(),
     triggerPad: vi.fn(),
+    triggerWrong: vi.fn(),
     dispose: vi.fn(),
   };
 }

@@ -39,7 +39,7 @@ describe('LobbyPairingPanel', () => {
       </LobbySessionProvider>,
     );
 
-    expect(screen.getByRole('option', { name: /host \/ tv/i }).selected).toBe(true);
+    expect((screen.getByRole('option', { name: /host \/ tv/i }) as HTMLOptionElement).selected).toBe(true);
   });
 
   it('defaults to phone on phone-like devices', () => {
@@ -55,10 +55,10 @@ describe('LobbyPairingPanel', () => {
       </LobbySessionProvider>,
     );
 
-    expect(screen.getByRole('option', { name: /^phone$/i }).selected).toBe(true);
-    expect(screen.getByRole('option', { name: /player 1/i }).selected).toBe(true);
+    expect((screen.getByRole('option', { name: /^phone$/i }) as HTMLOptionElement).selected).toBe(true);
+    expect((screen.getByRole('option', { name: /player 1/i }) as HTMLOptionElement).selected).toBe(true);
 
     fireEvent.change(screen.getByLabelText(/player slot/i), { target: { value: '2' } });
-    expect(screen.getByRole('option', { name: /player 2/i }).selected).toBe(true);
+    expect((screen.getByRole('option', { name: /player 2/i }) as HTMLOptionElement).selected).toBe(true);
   });
 });
