@@ -1,0 +1,101 @@
+Original prompt: checkout the changes we made to improve the UI below. we implemented the detailed jam session with a great visual. I want you to implement the rest of the screens following the design and style we've created, do not stray from the design use it as a strict guideline.
+
+## Completed
+- Added setup, permissions, calibration, tutorial, and results screens in the same neon-arcade design language as the new jam screen.
+- Wired full phase flow in `App.tsx`: setup -> permissions -> calibration -> tutorial -> jam -> results.
+- Added lane instrument selection in setup and mapped it into music event generation.
+- Added tutorial progress/confirmation state and high-score persistence in store.
+- Added screen tests and mapping test coverage.
+
+## Verification
+- `npm run test` passing (17 files / 47 tests).
+- `npm run build` passing.
+- Playwright web-game loop passing with `playwright_exit=0`.
+- Captures reviewed:
+  - `output/web-game/shot-0.png` (permissions screen overlay + checklist + CTA)
+  - `output/web-game/shot-1.png` (live stage overlay render)
+- `state-0.json` / `state-1.json` confirm `render_game_to_text` fields for phase, permissions, tutorial, jam score/timer, and per-lane state.
+
+## Next TODOs
+- Add richer Playwright action scripts that exercise setup choices and full run transitions.
+- Consider deterministic `advanceTime` implementation for more reliable automation.
+
+## Debug Follow-up (Camera Lifecycle)
+- Root-cause evidence: `CameraView` used to stop tracks immediately on unmount, while phase transitions (`permissions -> calibration -> tutorial -> jam`) remount camera containers.
+- Implemented shared camera stream handoff in `src/components/CameraView.tsx` with a short grace period to prevent rapid stop/reacquire churn between phase transitions.
+- Added regression coverage in `src/components/CameraView.test.tsx`:
+  - verifies tracks stop after deliberate stop
+  - verifies rapid unmount/remount keeps stream alive and avoids duplicate `getUserMedia` calls
+
+## Gameplay Mechanics Follow-up
+- Root-cause evidence for random timing feedback: jam scoring was phase-aligned to session start time instead of the active transport grid. Player-aligned beats could still grade late/good based on start-phase drift.
+- Removed autonomous conductor-generated note events from mapping so instrument sounds are player-driven only.
+- Added explicit cue-window helpers and transport-grid offset helpers:
+  - `src/game/cues.ts`
+  - `src/music/transport.ts` (`computeGridOffsetMs`)
+- Updated jam flow:
+  - score offset now uses transport grid offset
+  - cue state is surfaced in HUD + lane cards (`PLAY`/`HOLD`)
+  - overlay shows cue strips during hit windows
+  - last-10-seconds warning now has center countdown visual plus short audio ticks
+- Added tests:
+  - `src/game/cues.test.ts`
+  - updated `src/music/transport.test.ts`
+  - updated `src/music/mapping.test.ts`
+
+## Loop Track + Guide Beat Follow-up
+- Added fixed 8-bar arrangement engine in `src/game/arrangement.ts` with tests in `src/game/arrangement.test.ts`:
+  - bars 1-4 = Harmony (all lanes active)
+  - bars 5-6 = Solo focus (rotates Left -> Middle -> Right per cycle)
+  - bars 7-8 = Blend (all lanes active)
+- Added new jam timeline UI (`src/components/jam/TrackTimeline.tsx`) with tests in `src/components/jam/TrackTimeline.test.tsx`.
+  - Shows bar-by-bar lane activity and moving playhead.
+  - Per-lane status now uses stable `PLAY/WAIT` plus beat-window `HIT` pulse.
+- Rewired jam screen composition to include timeline and new cue semantics:
+  - `src/components/screens/JamScreen.tsx`
+  - `src/components/jam/TopHUD.tsx`
+  - `src/components/jam/LaneBar.tsx`
+  - `src/components/jam/LaneCard.tsx`
+- Overlay now reflects arrangement activity (`src/components/OverlayCanvas.tsx`):
+  - inactive lanes are visibly dimmed
+  - cue strips only show on currently active lanes
+- Gameplay event gating now follows arrangement in `src/App.tsx`:
+  - player events from inactive lanes are ignored during jam windows
+- Added continuous guide beat loop (toggle uses existing store flag, relabeled in UI):
+  - `src/music/transport.ts` gains repeat scheduling/clear API
+  - `src/App.tsx` schedules quarter-note guide hats during jam when enabled
+  - `src/components/Controls.tsx` label changed from `AI Conductor` to `Guide Beat`
+
+## Verification (latest)
+- `npm run test` passing (20 files / 59 tests).
+- `npm run build` passing.
+- Playwright web-game client run completed with exit 0.
+  - Latest captures: `output/web-game/shot-0.png`, `output/web-game/shot-1.png`
+  - Latest states: `output/web-game/state-0.json`, `output/web-game/state-1.json`
+- `npm run lint` currently fails due existing repo lint rules/issues (not newly introduced in this pass), including `react-hooks/refs` in `CameraView` and `TopHUD` plus fast-refresh export warnings.
+
+## Timeline Removal + Score Crash Hardening
+- User requested rollback of timeline track UI and investigation of score crash.
+- Added regression tests first (RED):
+  - `src/components/screens/JamScreen.test.tsx` asserts loop track UI is not rendered.
+  - `src/components/jam/TopHUD.test.tsx` reproduces crash path when score numeric fields are missing.
+  - `src/components/screens/ResultsScreen.safety.test.tsx` reproduces same crash class in results screen.
+- Root-cause evidence (validatable):
+  - Before fix, both HUD and results directly called `.toLocaleString()` / `.toFixed()` on score fields without guards.
+  - Tests failed with `TypeError: Cannot read properties of undefined (reading 'toLocaleString')` in:
+    - `src/components/jam/TopHUD.tsx`
+    - `src/components/screens/ResultsScreen.tsx`
+- Implemented fixes:
+  - Removed timeline from jam render path in `src/components/screens/JamScreen.tsx`.
+  - Reverted jam grid layout to 3 rows in `src/App.css`.
+  - Hardened score rendering in `src/components/jam/TopHUD.tsx` via numeric guards (`safeNumber`) and removed ref-based score/combo delta render logic.
+  - Hardened score rendering in `src/components/screens/ResultsScreen.tsx` with numeric guards for all displayed score values.
+- Verification:
+  - Targeted tests for new regressions now passing.
+  - Full suite passing: `npm run test` (23 files / 62 tests).
+  - Build passing: `npm run build`.
+  - Scripted browser flow (setup -> permissions -> calibration skip -> tutorial -> jam -> results) with fake media:
+    - no console/page errors
+    - `hasLoopTrack: 0`
+    - HUD and results score elements render (`hudScore: "0"`, `resultsTotal: "0"`)
+    - screenshot: `output/debug-no-track-no-crash.png`

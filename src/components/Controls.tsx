@@ -68,9 +68,9 @@ export function Controls({ onToggleSession }: ControlsProps) {
       </label>
 
       <label>
-        AI Conductor
+        Guide Beat
         <input
-          aria-label="AI Conductor"
+          aria-label="Guide Beat"
           type="checkbox"
           checked={conductorEnabled}
           onChange={(event) => setConductorEnabled(event.currentTarget.checked)}

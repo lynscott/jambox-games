@@ -1,20 +1,23 @@
 import type { Conductor } from './conductor';
-import type { ZoneFeatureSnapshot, ZoneId } from '../types';
+import type { LaneInstrument, ZoneFeatureSnapshot, ZoneId } from '../types';
 
 export type MusicEvent =
   | {
+      source: 'player';
       instrument: 'drums';
       kind: 'kick' | 'snare' | 'hat';
       zone: ZoneId;
       velocity: number;
     }
   | {
+      source: 'player';
       instrument: 'bass';
       zone: ZoneId;
       note: string;
       velocity: number;
     }
   | {
+      source: 'player';
       instrument: 'pad';
       zone: ZoneId;
       notes: string[];
@@ -23,10 +26,9 @@ export type MusicEvent =
     };
 
 export interface MappingState {
-  lastDrumHitAt: Record<ZoneId, number>;
-  lastBassAt: number;
-  lastPadAt: number;
-  lastSupportAt: number;
+  lastRhythmHitAt: Record<ZoneId, number>;
+  lastBassAt: Record<ZoneId, number>;
+  lastPadAt: Record<ZoneId, number>;
 }
 
 interface MappingParams {
@@ -34,7 +36,7 @@ interface MappingParams {
   state: MappingState;
   conductor: Conductor;
   features: Record<ZoneId, ZoneFeatureSnapshot>;
-  previousGlobalEnergy: number;
+  laneInstruments?: Record<ZoneId, LaneInstrument>;
 }
 
 interface MappingResult {
@@ -49,14 +51,21 @@ function clamp(value: number, min: number, max: number): number {
 
 export function createInitialMappingState(): MappingState {
   return {
-    lastDrumHitAt: {
+    lastRhythmHitAt: {
       left: -Infinity,
       middle: -Infinity,
       right: -Infinity,
     },
-    lastBassAt: -Infinity,
-    lastPadAt: -Infinity,
-    lastSupportAt: -Infinity,
+    lastBassAt: {
+      left: -Infinity,
+      middle: -Infinity,
+      right: -Infinity,
+    },
+    lastPadAt: {
+      left: -Infinity,
+      middle: -Infinity,
+      right: -Infinity,
+    },
   };
 }
 
@@ -77,13 +86,16 @@ export function mapFeaturesToEvents({
   state,
   conductor,
   features,
-  previousGlobalEnergy,
+  laneInstruments = {
+    left: 'rhythm',
+    middle: 'bass',
+    right: 'pad',
+  },
 }: MappingParams): MappingResult {
   const nextState: MappingState = {
-    lastDrumHitAt: { ...state.lastDrumHitAt },
-    lastBassAt: state.lastBassAt,
-    lastPadAt: state.lastPadAt,
-    lastSupportAt: state.lastSupportAt,
+    lastRhythmHitAt: { ...state.lastRhythmHitAt },
+    lastBassAt: { ...state.lastBassAt },
+    lastPadAt: { ...state.lastPadAt },
   };
   const events: MusicEvent[] = [];
 
@@ -92,60 +104,49 @@ export function mapFeaturesToEvents({
 
   zones.forEach((zone) => {
     const feature = features[zone];
-    if (feature.wristVelocity > 0.45 && timestamp - nextState.lastDrumHitAt[zone] > 180) {
-      const kind = zone === 'left' ? 'kick' : zone === 'middle' ? 'snare' : 'hat';
+    const role = laneInstruments[zone];
+
+    if (role === 'rhythm') {
+      if (feature.wristVelocity > 0.45 && timestamp - nextState.lastRhythmHitAt[zone] > 180) {
+        const kind = zone === 'left' ? 'kick' : zone === 'middle' ? 'snare' : 'hat';
+        events.push({
+          source: 'player',
+          instrument: 'drums',
+          kind,
+          zone,
+          velocity: clamp(feature.wristVelocity, 0.25, 1),
+        });
+        nextState.lastRhythmHitAt[zone] = timestamp;
+      }
+      return;
+    }
+
+    if (role === 'bass') {
+      if (timestamp - nextState.lastBassAt[zone] > 220 && feature.energy > 0.04) {
+        events.push({
+          source: 'player',
+          instrument: 'bass',
+          zone,
+          note: mapAngleToBassNote(feature.shoulderWristAngle, conductor),
+          velocity: clamp(0.35 + feature.energy, 0.3, 0.85),
+        });
+        nextState.lastBassAt[zone] = timestamp;
+      }
+      return;
+    }
+
+    if (timestamp - nextState.lastPadAt[zone] > 500 && feature.energy > 0.03) {
       events.push({
-        instrument: 'drums',
-        kind,
+        source: 'player',
+        instrument: 'pad',
         zone,
-        velocity: clamp(feature.wristVelocity, 0.25, 1),
+        notes: conductor.getChordVoicing(4),
+        velocity: clamp(0.2 + feature.energy, 0.2, 0.6),
+        filterCutoff: mapTorsoToFilter(feature.torsoY),
       });
-      nextState.lastDrumHitAt[zone] = timestamp;
+      nextState.lastPadAt[zone] = timestamp;
     }
   });
-
-  if (timestamp - nextState.lastBassAt > 220 && features.middle.energy > 0.04) {
-    events.push({
-      instrument: 'bass',
-      zone: 'middle',
-      note: mapAngleToBassNote(features.middle.shoulderWristAngle, conductor),
-      velocity: clamp(0.35 + features.middle.energy, 0.3, 0.85),
-    });
-    nextState.lastBassAt = timestamp;
-  }
-
-  const chordNotes = conductor.getChordVoicing(4);
-  if (timestamp - nextState.lastPadAt > 500 && features.right.energy > 0.03) {
-    events.push({
-      instrument: 'pad',
-      zone: 'right',
-      notes: chordNotes,
-      velocity: clamp(0.2 + features.right.energy, 0.2, 0.6),
-      filterCutoff: mapTorsoToFilter(features.right.torsoY),
-    });
-    nextState.lastPadAt = timestamp;
-  }
-
-  if (conductor.shouldAddFill(globalEnergy, previousGlobalEnergy)) {
-    events.push({
-      instrument: 'drums',
-      kind: 'hat',
-      zone: 'right',
-      velocity: 0.5,
-    });
-  }
-
-  const idleZones = zones.filter((zone) => conductor.shouldSupportIdle(features[zone].energy));
-  if (idleZones.length > 0 && timestamp - nextState.lastSupportAt > 700) {
-    events.push({
-      instrument: 'pad',
-      zone: idleZones[0],
-      notes: chordNotes,
-      velocity: 0.18,
-      filterCutoff: 900,
-    });
-    nextState.lastSupportAt = timestamp;
-  }
 
   return {
     events,

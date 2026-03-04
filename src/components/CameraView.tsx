@@ -6,47 +6,126 @@ interface CameraViewProps {
   onVideoElementChange?: (video: HTMLVideoElement | null) => void;
 }
 
+const CAMERA_HANDOFF_GRACE_MS = 750;
+
+let sharedStream: MediaStream | null = null;
+let pendingStream: Promise<MediaStream> | null = null;
+let activeConsumers = 0;
+let releaseTimer: number | null = null;
+
+function clearReleaseTimer() {
+  if (releaseTimer !== null) {
+    window.clearTimeout(releaseTimer);
+    releaseTimer = null;
+  }
+}
+
+function retainStreamConsumer() {
+  activeConsumers += 1;
+  clearReleaseTimer();
+}
+
+function releaseStreamConsumer() {
+  activeConsumers = Math.max(0, activeConsumers - 1);
+
+  if (activeConsumers > 0) {
+    return;
+  }
+
+  clearReleaseTimer();
+  releaseTimer = window.setTimeout(() => {
+    if (activeConsumers > 0) {
+      return;
+    }
+
+    if (sharedStream) {
+      sharedStream.getTracks().forEach((track) => track.stop());
+      sharedStream = null;
+    }
+    releaseTimer = null;
+  }, CAMERA_HANDOFF_GRACE_MS);
+}
+
+async function acquireSharedStream(): Promise<MediaStream> {
+  clearReleaseTimer();
+  if (sharedStream) {
+    return sharedStream;
+  }
+
+  if (!pendingStream) {
+    pendingStream = navigator.mediaDevices
+      .getUserMedia({
+        audio: false,
+        video: {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      })
+      .then((stream) => {
+        sharedStream = stream;
+        return stream;
+      })
+      .finally(() => {
+        pendingStream = null;
+      });
+  }
+
+  return pendingStream;
+}
+
+export function __resetCameraViewSharedStateForTests() {
+  clearReleaseTimer();
+  if (sharedStream) {
+    sharedStream.getTracks().forEach((track) => track.stop());
+  }
+  sharedStream = null;
+  pendingStream = null;
+  activeConsumers = 0;
+}
+
 export function CameraView({ isRunning, children, onVideoElementChange }: CameraViewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const hasConsumerRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const stopStream = () => {
-      const stream = streamRef.current;
-      if (!stream) {
-        return;
-      }
-      stream.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    };
+    let cancelled = false;
 
     const start = async () => {
       if (!isRunning) {
-        stopStream();
+        if (hasConsumerRef.current) {
+          releaseStreamConsumer();
+          hasConsumerRef.current = false;
+        }
         return;
       }
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
+        if (!hasConsumerRef.current) {
+          retainStreamConsumer();
+          hasConsumerRef.current = true;
+        }
 
-        streamRef.current = stream;
+        const stream = await acquireSharedStream();
+        if (cancelled) {
+          return;
+        }
         setErrorMessage(null);
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
+          if (cancelled) {
+            return;
+          }
           onVideoElementChange?.(videoRef.current);
         }
       } catch {
-        stopStream();
+        if (hasConsumerRef.current) {
+          releaseStreamConsumer();
+          hasConsumerRef.current = false;
+        }
         onVideoElementChange?.(null);
         setErrorMessage('Unable to access webcam. Check permissions and reload.');
       }
@@ -55,8 +134,12 @@ export function CameraView({ isRunning, children, onVideoElementChange }: Camera
     void start();
 
     return () => {
+      cancelled = true;
       onVideoElementChange?.(null);
-      stopStream();
+      if (hasConsumerRef.current) {
+        releaseStreamConsumer();
+        hasConsumerRef.current = false;
+      }
     };
   }, [isRunning, onVideoElementChange]);
 

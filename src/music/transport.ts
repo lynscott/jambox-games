@@ -23,11 +23,32 @@ export function nextQuantizedTime(
   return Number(quantizedStep.toFixed(6));
 }
 
+export function computeGridOffsetMs(
+  nowSeconds: number,
+  bpm: number,
+  resolution: Quantization,
+): number {
+  const step = beatDurationSeconds(bpm, resolution);
+  if (step <= 0) {
+    return 0;
+  }
+
+  const phase = ((nowSeconds % step) + step) % step;
+  const signedOffsetSeconds = phase > step / 2 ? phase - step : phase;
+  return signedOffsetSeconds * 1000;
+}
+
 export interface TransportController {
   now: () => number;
   start: () => Promise<void>;
   stop: () => void;
   setBpm: (bpm: number) => void;
+  scheduleRepeat: (
+    callback: (time: number) => void,
+    interval: Quantization,
+    startAtSeconds?: number,
+  ) => number;
+  clear: (eventId: number) => void;
   schedule: (
     callback: (time: number) => void,
     bpm: number,
@@ -40,7 +61,7 @@ export async function createToneTransportController(): Promise<TransportControll
   const Tone = await import('tone');
 
   return {
-    now: () => Tone.now(),
+    now: () => Tone.Transport.seconds,
     start: async () => {
       await Tone.start();
       Tone.Transport.start();
@@ -52,8 +73,14 @@ export async function createToneTransportController(): Promise<TransportControll
     setBpm: (bpm: number) => {
       Tone.Transport.bpm.value = bpm;
     },
+    scheduleRepeat: (callback, interval, startAtSeconds = Tone.Transport.seconds) => {
+      return Tone.Transport.scheduleRepeat((time) => callback(time), interval, startAtSeconds);
+    },
+    clear: (eventId) => {
+      Tone.Transport.clear(eventId);
+    },
     schedule: (callback, bpm, resolution, lookaheadMs = 80) => {
-      const now = Tone.now();
+      const now = Tone.Transport.seconds;
       const when = nextQuantizedTime(now, bpm, resolution, lookaheadMs);
       Tone.Transport.scheduleOnce((time) => callback(time), when);
       return when;

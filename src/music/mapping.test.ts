@@ -16,10 +16,10 @@ describe('feature mapping', () => {
         middle: { wristVelocity: 0, torsoY: 230, shoulderWristAngle: -0.2, energy: 0.1 },
         right: { wristVelocity: 0, torsoY: 230, shoulderWristAngle: 0.1, energy: 0.05 },
       },
-      previousGlobalEnergy: 0.2,
     });
 
     expect(result.events.some((event) => event.instrument === 'drums')).toBe(true);
+    expect(result.events.every((event) => event.source === 'player')).toBe(true);
 
     state = result.nextState;
     result = mapFeaturesToEvents({
@@ -31,7 +31,6 @@ describe('feature mapping', () => {
         middle: { wristVelocity: 0, torsoY: 230, shoulderWristAngle: -0.2, energy: 0.1 },
         right: { wristVelocity: 0, torsoY: 230, shoulderWristAngle: 0.1, energy: 0.05 },
       },
-      previousGlobalEnergy: result.globalEnergy,
     });
 
     expect(result.events.filter((event) => event.instrument === 'drums')).toHaveLength(0);
@@ -46,9 +45,8 @@ describe('feature mapping', () => {
       features: {
         left: { wristVelocity: 0, torsoY: 220, shoulderWristAngle: 1.2, energy: 0.1 },
         middle: { wristVelocity: 0, torsoY: 180, shoulderWristAngle: -1.0, energy: 0.1 },
-        right: { wristVelocity: 0, torsoY: 260, shoulderWristAngle: 0.2, energy: 0.02 },
+        right: { wristVelocity: 0, torsoY: 260, shoulderWristAngle: 0.2, energy: 0.05 },
       },
-      previousGlobalEnergy: 0.1,
     });
 
     const bass = result.events.find((event) => event.instrument === 'bass');
@@ -65,7 +63,7 @@ describe('feature mapping', () => {
     }
   });
 
-  it('adds idle support pattern for low-energy zones', () => {
+  it('does not emit autonomous conductor support when no player gesture is present', () => {
     const conductor = createConductor();
     const result = mapFeaturesToEvents({
       timestamp: 3000,
@@ -76,9 +74,31 @@ describe('feature mapping', () => {
         middle: { wristVelocity: 0, torsoY: 230, shoulderWristAngle: 0, energy: 0.01 },
         right: { wristVelocity: 0, torsoY: 230, shoulderWristAngle: 0, energy: 0.01 },
       },
-      previousGlobalEnergy: 0,
     });
 
-    expect(result.events.some((event) => event.instrument === 'pad')).toBe(true);
+    expect(result.events).toHaveLength(0);
+  });
+
+  it('uses selected lane instruments instead of fixed zone roles', () => {
+    const conductor = createConductor();
+    const result = mapFeaturesToEvents({
+      timestamp: 4200,
+      state: createInitialMappingState(),
+      conductor,
+      laneInstruments: {
+        left: 'pad',
+        middle: 'rhythm',
+        right: 'bass',
+      },
+      features: {
+        left: { wristVelocity: 0.1, torsoY: 180, shoulderWristAngle: 0.4, energy: 0.08 },
+        middle: { wristVelocity: 0.7, torsoY: 230, shoulderWristAngle: 0.1, energy: 0.12 },
+        right: { wristVelocity: 0.2, torsoY: 240, shoulderWristAngle: -1.1, energy: 0.1 },
+      },
+    });
+
+    expect(result.events.some((event) => event.zone === 'left' && event.instrument === 'pad')).toBe(true);
+    expect(result.events.some((event) => event.zone === 'middle' && event.instrument === 'drums')).toBe(true);
+    expect(result.events.some((event) => event.zone === 'right' && event.instrument === 'bass')).toBe(true);
   });
 });

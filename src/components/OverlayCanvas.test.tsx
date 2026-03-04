@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { drawOverlayGuides, OverlayCanvas } from './OverlayCanvas';
+import { drawNeonOverlay, OverlayCanvas } from './OverlayCanvas';
 import { render } from '@testing-library/react';
 
-describe('drawOverlayGuides', () => {
-  it('draws zone guides and beat indicators', () => {
+describe('drawNeonOverlay', () => {
+  it('draws zone washes, dividers, and beat dots', () => {
     const ctx = {
       save: vi.fn(),
       restore: vi.fn(),
@@ -13,17 +13,36 @@ describe('drawOverlayGuides', () => {
       stroke: vi.fn(),
       arc: vi.fn(),
       fill: vi.fn(),
+      fillRect: vi.fn(),
       clearRect: vi.fn(),
+      createLinearGradient: vi.fn().mockReturnValue({
+        addColorStop: vi.fn(),
+      }),
       strokeStyle: '',
       fillStyle: '',
       lineWidth: 0,
+      shadowColor: '',
+      shadowBlur: 0,
     } as unknown as CanvasRenderingContext2D;
 
-    drawOverlayGuides(ctx, 900, 450, 0.4);
+    const hitFlashes = { left: 0, middle: 0, right: 0 };
+    drawNeonOverlay(
+      ctx,
+      900,
+      450,
+      0.4,
+      true,
+      { left: true, middle: true, right: true },
+      hitFlashes,
+      performance.now(),
+    );
 
-    expect((ctx.moveTo as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1);
+    // Zone washes: 3 fillRect calls for lane colors
+    expect((ctx.fillRect as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(3);
+    // Beat dots: 3 arc calls
     expect((ctx.arc as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBe(3);
-    expect((ctx.stroke as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0);
+    // Divider lines: 2 stroke calls
+    expect((ctx.stroke as unknown as ReturnType<typeof vi.fn>).mock.calls.length).toBe(2);
   });
 });
 
@@ -43,10 +62,16 @@ describe('OverlayCanvas', () => {
         stroke: vi.fn(),
         arc: vi.fn(),
         fill: vi.fn(),
+        fillRect: vi.fn(),
         clearRect: vi.fn(),
+        createLinearGradient: vi.fn().mockReturnValue({
+          addColorStop: vi.fn(),
+        }),
         strokeStyle: '',
         fillStyle: '',
         lineWidth: 0,
+        shadowColor: '',
+        shadowBlur: 0,
       }),
     });
 

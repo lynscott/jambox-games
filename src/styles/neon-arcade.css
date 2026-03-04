@@ -1,0 +1,134 @@
+/* ============================================
+   Neon Arcade Design System
+   Pure black + saturated neon + synthwave/Tron
+   ============================================ */
+
+:root {
+  /* --- Base surfaces --- */
+  --na-black: #0a0a0f;
+  --na-surface: #0f0f18;
+  --na-raised: #141422;
+  --na-border: rgba(124, 77, 255, 0.15);
+
+  /* --- Lane colors: Drums (left) --- */
+  --na-drums: #ff8c00;
+  --na-drums-dim: rgba(255, 140, 0, 0.25);
+  --na-drums-glow: rgba(255, 140, 0, 0.6);
+
+  /* --- Lane colors: Bass (middle) --- */
+  --na-bass: #00e5ff;
+  --na-bass-dim: rgba(0, 229, 255, 0.25);
+  --na-bass-glow: rgba(0, 229, 255, 0.6);
+
+  /* --- Lane colors: Pad (right) --- */
+  --na-pad: #e040fb;
+  --na-pad-dim: rgba(224, 64, 251, 0.25);
+  --na-pad-glow: rgba(224, 64, 251, 0.6);
+
+  /* --- Grade colors --- */
+  --na-grade-perfect: #00ff88;
+  --na-grade-good: #ffeb3b;
+  --na-grade-late: #ff6e40;
+  --na-grade-miss: #ff1744;
+
+  /* --- Accent colors --- */
+  --na-combo: #ffd740;
+  --na-accent: #7c4dff;
+  --na-accent-dim: rgba(124, 77, 255, 0.3);
+
+  /* --- Text --- */
+  --na-text-primary: #f0f0f8;
+  --na-text-secondary: rgba(240, 240, 248, 0.55);
+  --na-text-dim: rgba(240, 240, 248, 0.3);
+
+  /* --- Fonts --- */
+  --na-font-display: 'Orbitron', sans-serif;
+  --na-font-body: 'Inter', sans-serif;
+  --na-font-mono: 'JetBrains Mono', monospace;
+}
+
+/* --- Animations --- */
+
+@keyframes beat-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.85; }
+}
+
+@keyframes combo-burst {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+@keyframes hit-flash {
+  0% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+@keyframes timing-callout {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  60% {
+    opacity: 0.8;
+    transform: translateY(-24px) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-48px) scale(0.95);
+  }
+}
+
+@keyframes idle-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes score-flash {
+  0% { color: #fff; }
+  100% { color: var(--na-text-primary); }
+}
+
+@keyframes timer-urgent {
+  0%, 100% { color: var(--na-grade-miss); text-shadow: 0 0 12px rgba(255, 23, 68, 0.6); }
+  50% { color: #ff6e6e; text-shadow: 0 0 20px rgba(255, 23, 68, 0.9); }
+}
+
+@keyframes glow-rotate {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+/* --- Textures --- */
+
+.na-scanlines {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  z-index: 10;
+}
+
+.na-grid-bg {
+  background-image:
+    linear-gradient(rgba(124, 77, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124, 77, 255, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* --- Utility classes --- */
+
+.na-glow-text {
+  text-shadow: 0 0 8px currentColor, 0 0 24px currentColor;
+}
+
+.na-glow-box {
+  box-shadow: 0 0 8px rgba(124, 77, 255, 0.3), inset 0 0 8px rgba(124, 77, 255, 0.1);
+}
