@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInitialState, useAppStore } from '../../state/store';
 import { SetupScreen } from './SetupScreen';
 
@@ -7,11 +7,15 @@ describe('SetupScreen', () => {
   beforeEach(() => {
     useAppStore.setState(createInitialState());
   });
+  afterEach(() => {
+    cleanup();
+  });
 
   it('lets users choose lane instruments and jam duration before starting', () => {
     const onStartSession = vi.fn();
+    const onBackToMenu = vi.fn();
 
-    render(<SetupScreen onStartSession={onStartSession} />);
+    render(<SetupScreen onStartSession={onStartSession} onBackToMenu={onBackToMenu} />);
 
     expect(screen.getByText(/midnight soul/i)).toBeInTheDocument();
     expect(
@@ -27,5 +31,18 @@ describe('SetupScreen', () => {
     expect(state.lanes.middle.instrument).toBe('drums');
     expect(state.jamDurationSec).toBe(90);
     expect(onStartSession).toHaveBeenCalledTimes(1);
+    expect(onBackToMenu).not.toHaveBeenCalled();
+  });
+
+  it('supports going back to the home menu from setup', () => {
+    const onStartSession = vi.fn();
+    const onBackToMenu = vi.fn();
+
+    render(<SetupScreen onStartSession={onStartSession} onBackToMenu={onBackToMenu} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /back to menu/i }));
+
+    expect(onBackToMenu).toHaveBeenCalledTimes(1);
+    expect(onStartSession).not.toHaveBeenCalled();
   });
 });

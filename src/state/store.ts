@@ -3,6 +3,7 @@ import { MIDNIGHT_SOUL_TRACK } from '../music/tracks';
 import type {
   AppDiagnostics,
   GamePhase,
+  GameSelection,
   LaneInstrument,
   LaneState,
   Quantization,
@@ -27,6 +28,7 @@ export interface AppState {
   calibrationLocks: Record<ZoneId, number | null>;
   gamePhase: GamePhase;
   currentTrackId: TrackId;
+  selectedGame: GameSelection | null;
   jamDurationSec: 60 | 90;
   jamTimeRemainingMs: number;
   tutorialBeatsCompleted: number;
@@ -48,6 +50,7 @@ export interface AppState {
   setZoneOccupants: (occupants: Record<ZoneId, ZoneOccupantSnapshot | null>) => void;
   setCalibrationLocks: (locks: Record<ZoneId, number | null>) => void;
   setGamePhase: (phase: GamePhase) => void;
+  setSelectedGame: (game: GameSelection | null) => void;
   setJamDuration: (duration: 60 | 90) => void;
   setLaneInstrument: (zone: ZoneId, instrument: LaneInstrument) => void;
   updateJamTimer: (remainingMs: number) => void;
@@ -147,8 +150,9 @@ export const createInitialState = () => ({
     middle: null,
     right: null,
   },
-  gamePhase: 'home' as const,
+  gamePhase: 'lobby' as const,
   currentTrackId: MIDNIGHT_SOUL_TRACK.id,
+  selectedGame: null,
   jamDurationSec: 60 as const,
   jamTimeRemainingMs: 60_000,
   tutorialBeatsCompleted: 0,
@@ -196,6 +200,7 @@ export const useAppStore = create<AppState>((set) => ({
   setZoneOccupants: (zoneOccupants) => set({ zoneOccupants }),
   setCalibrationLocks: (calibrationLocks) => set({ calibrationLocks }),
   setGamePhase: (gamePhase) => set({ gamePhase }),
+  setSelectedGame: (selectedGame) => set({ selectedGame }),
   setJamDuration: (jamDurationSec) =>
     set({ jamDurationSec, jamTimeRemainingMs: jamDurationSec * 1000 }),
   setLaneInstrument: (zone, instrument) =>

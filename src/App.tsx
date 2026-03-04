@@ -5,10 +5,15 @@ import { JamScreen } from './components/screens/JamScreen';
 import { CalibrationScreen } from './components/screens/CalibrationScreen';
 import { ComingSoonScreen } from './components/screens/ComingSoonScreen';
 import { HomeScreen } from './components/screens/HomeScreen';
+import { LobbyScreen } from './components/screens/LobbyScreen';
 import { PermissionsScreen } from './components/screens/PermissionsScreen';
 import { ResultsScreen } from './components/screens/ResultsScreen';
 import { SetupScreen } from './components/screens/SetupScreen';
 import { TutorialScreen } from './components/screens/TutorialScreen';
+import { PhonePlayerScreen } from './components/screens/PhonePlayerScreen';
+import { VsBattleScreen } from './components/screens/VsBattleScreen';
+import { VsResultsScreen } from './components/screens/VsResultsScreen';
+import { VsSetupScreen } from './components/screens/VsSetupScreen';
 import { getGameById } from './game/catalog';
 import { computeLoopArrangement, type LoopArrangement } from './game/arrangement';
 import {
@@ -34,6 +39,17 @@ import { computeZoneFeatures, createInitialFeatureState } from './pose/features'
 import { loadMoveNet, type PoseSample } from './pose/movenet';
 import { assignZones, createInitialZoningState } from './pose/zoning';
 import { useAppStore } from './state/store';
+import { buildVerzuzRoundDeck, type VerzuzPlayer, type VerzuzRoundResult } from './game/verzuz';
+import { LobbySessionProvider, useLobbySession } from './lobby/useLobbySession';
+import {
+  beginSpotifyLogin,
+  clearSpotifyConnection,
+  completeSpotifyLoginFromUrl,
+  hasSpotifyClientConfig,
+  loadSpotifyConnection,
+  type SpotifyConnection,
+  type SpotifyTrackSummary,
+} from './spotify/client';
 import type { GameSelection, LaneInstrument, ZoneId } from './types';
 import './App.css';
 
@@ -61,6 +77,30 @@ const ALL_ACTIVE_ZONES: Record<ZoneId, boolean> = {
   right: true,
 };
 
+const ROUTABLE_PHASES = new Set([
+  'lobby',
+  'home',
+  'setup',
+  'vs_setup',
+  'vs_battle',
+  'vs_results',
+  'permissions',
+  'calibration',
+  'tutorial',
+  'jam',
+  'results',
+  'vs_placeholder',
+  'on_beat_placeholder',
+  'lyrics_placeholder',
+]);
+
+function parseGameSelection(value: string | null): GameSelection | null {
+  if (value === 'jam_hero' || value === 'vs' || value === 'on_beat' || value === 'know_your_lyrics') {
+    return value;
+  }
+  return null;
+}
+
 function zoneForX(centerX: number, width: number): ZoneId {
   if (centerX < width / 3) {
     return 'left';
@@ -85,7 +125,7 @@ function hasRaisedHands(pose: PoseSample): boolean {
   return leftWrist.y < leftShoulder.y && rightWrist.y < rightShoulder.y;
 }
 
-function App() {
+function AppContent() {
   const isSessionRunning = useAppStore((state) => state.isSessionRunning);
   const setSessionRunning = useAppStore((state) => state.setSessionRunning);
   const showSkeleton = useAppStore((state) => state.showSkeleton);
@@ -101,7 +141,9 @@ function App() {
   const calibrationLocks = useAppStore((state) => state.calibrationLocks);
   const setCalibrationLocks = useAppStore((state) => state.setCalibrationLocks);
   const gamePhase = useAppStore((state) => state.gamePhase);
+  const selectedGame = useAppStore((state) => state.selectedGame);
   const setGamePhase = useAppStore((state) => state.setGamePhase);
+  const setSelectedGame = useAppStore((state) => state.setSelectedGame);
   const updateScore = useAppStore((state) => state.updateScore);
   const updateLane = useAppStore((state) => state.updateLane);
   const setHitFlash = useAppStore((state) => state.setHitFlash);
@@ -121,8 +163,8 @@ function App() {
   const highScore = useAppStore((state) => state.highScore);
   const commitHighScore = useAppStore((state) => state.commitHighScore);
   const currentTrackId = useAppStore((state) => state.currentTrackId);
-
   const currentTrack = TRACK_PRESETS[currentTrackId];
+  const { lobby, accessPoint, socketStatus, selectedTracks } = useLobbySession();
 
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [poses, setPoses] = useState<PoseSample[]>([]);
@@ -137,6 +179,26 @@ function App() {
   const [audioReady, setAudioReady] = useState(false);
   const [isPermissionBusy, setIsPermissionBusy] = useState(false);
   const [isNewHighScore, setIsNewHighScore] = useState(false);
+  const [vsPlayers, setVsPlayers] = useState<VerzuzPlayer[]>([
+    { name: 'Player 1' },
+    { name: 'Player 2' },
+  ]);
+  const [vsRoundCount, setVsRoundCount] = useState(5);
+  const [vsSelectedCategories, setVsSelectedCategories] = useState<string[]>([
+    'Best Collaboration',
+    'Heartbreak',
+    'West Coast Anthems',
+    '90s R&B Hits',
+    'Best Remix Songs',
+  ]);
+  const [vsScores, setVsScores] = useState<[number, number]>([0, 0]);
+  const [vsRoundIndex, setVsRoundIndex] = useState(0);
+  const [vsRoundHistory, setVsRoundHistory] = useState<VerzuzRoundResult[]>([]);
+  const [vsSpotifyConnections, setVsSpotifyConnections] = useState<Array<SpotifyConnection | null>>([
+    null,
+    null,
+  ]);
+  const [vsRoundTracks, setVsRoundTracks] = useState<Record<number, SpotifyTrackSummary | null>>({});
 
   const zoningStateRef = useRef(createInitialZoningState());
   const featureStateRef = useRef(createInitialFeatureState());
@@ -152,6 +214,18 @@ function App() {
     startedAt: number;
     anchors: Record<ZoneId, number | null>;
   } | null>(null);
+
+  const resetVsBattle = useCallback(() => {
+    setVsScores([0, 0]);
+    setVsRoundIndex(0);
+    setVsRoundHistory([]);
+    setVsRoundTracks({});
+  }, []);
+
+  const vsRoundDeck = useMemo(
+    () => buildVerzuzRoundDeck(vsSelectedCategories, vsRoundCount),
+    [vsRoundCount, vsSelectedCategories],
+  );
 
   const finalizeSession = useCallback(
     (sessionDurationMs: number) => {
@@ -189,13 +263,22 @@ function App() {
     setGamePhase('permissions');
   }, [prepareNewRun, setGamePhase, setSessionRunning]);
 
+  const handleOpenLobby = useCallback(() => {
+    setGamePhase('lobby');
+  }, [setGamePhase]);
+
+  const handleOpenGameLauncher = useCallback(() => {
+    setGamePhase('home');
+  }, [setGamePhase]);
+
   const handleSelectGame = useCallback(
     (gameId: GameSelection) => {
       prepareNewRun();
       setSessionRunning(false);
+      setSelectedGame(gameId);
       setGamePhase(getGameById(gameId).phase);
     },
-    [prepareNewRun, setGamePhase, setSessionRunning],
+    [prepareNewRun, setGamePhase, setSelectedGame, setSessionRunning],
   );
 
   const handleRequestPermissions = useCallback(async () => {
@@ -253,22 +336,137 @@ function App() {
   }, [finalizeSession, isSessionRunning, jamDurationSec]);
 
   const handlePlayAgain = useCallback(() => {
+    if (selectedGame === 'vs') {
+      resetVsBattle();
+      setGamePhase('vs_battle');
+      return;
+    }
     prepareNewRun();
     setSessionRunning(false);
     setGamePhase('permissions');
-  }, [prepareNewRun, setGamePhase, setSessionRunning]);
+  }, [prepareNewRun, resetVsBattle, selectedGame, setGamePhase, setSessionRunning]);
 
   const handleChangeSetup = useCallback(() => {
+    if (selectedGame === 'vs') {
+      resetVsBattle();
+      setGamePhase('vs_setup');
+      return;
+    }
     prepareNewRun();
     setSessionRunning(false);
     setGamePhase('setup');
-  }, [prepareNewRun, setGamePhase, setSessionRunning]);
+  }, [prepareNewRun, resetVsBattle, selectedGame, setGamePhase, setSessionRunning]);
 
   const handleBackToMenu = useCallback(() => {
     prepareNewRun();
+    resetVsBattle();
     setSessionRunning(false);
+    setSelectedGame(null);
     setGamePhase('home');
-  }, [prepareNewRun, setGamePhase, setSessionRunning]);
+  }, [prepareNewRun, resetVsBattle, setGamePhase, setSelectedGame, setSessionRunning]);
+
+  const handleVsPlayerChange = useCallback(
+    (playerIndex: number, field: 'name', value: string) => {
+      setVsPlayers((current) =>
+        current.map((player, index) =>
+          index === playerIndex ? { ...player, [field]: value } : player,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleToggleVsCategory = useCallback((category: string) => {
+    setVsSelectedCategories((current) => {
+      if (current.includes(category)) {
+        return current.length === 1 ? current : current.filter((item) => item !== category);
+      }
+
+      return [...current, category];
+    });
+  }, []);
+
+  const handleStartVsBattle = useCallback(() => {
+    resetVsBattle();
+    setGamePhase('vs_battle');
+  }, [resetVsBattle, setGamePhase]);
+
+  const handleConnectSpotify = useCallback((playerIndex: number) => {
+    void beginSpotifyLogin(playerIndex);
+  }, []);
+
+  const handleDisconnectSpotify = useCallback((playerIndex: number) => {
+    clearSpotifyConnection(playerIndex);
+    setVsSpotifyConnections((current) =>
+      current.map((connection, index) => (index === playerIndex ? null : connection)),
+    );
+  }, []);
+
+  const handleSelectVsRoundTrack = useCallback(
+    (trackId: string) => {
+      const currentPlayer = vsRoundIndex % 2 === 0 ? 0 : 1;
+      const track =
+        vsSpotifyConnections[currentPlayer]?.savedTracks.find((item) => item.id === trackId) || null;
+
+      setVsRoundTracks((current) => ({
+        ...current,
+        [vsRoundIndex + 1]: track,
+      }));
+    },
+    [vsRoundIndex, vsSpotifyConnections],
+  );
+
+  const handleAwardVsRound = useCallback(
+    (winner: 'player1' | 'player2' | 'tie') => {
+      const category = vsRoundDeck[vsRoundIndex] || 'Best Collaboration';
+
+      setVsScores((current) => {
+        if (winner === 'player1') {
+          return [current[0] + 1, current[1]];
+        }
+        if (winner === 'player2') {
+          return [current[0], current[1] + 1];
+        }
+        return current;
+      });
+
+      setVsRoundHistory((current) => [
+        ...current,
+        {
+          round: vsRoundIndex + 1,
+          category,
+          winner,
+        },
+      ]);
+
+      if (vsRoundIndex + 1 >= vsRoundCount) {
+        setGamePhase('vs_results');
+        return;
+      }
+
+      setVsRoundIndex((current) => current + 1);
+    },
+    [setGamePhase, vsRoundCount, vsRoundDeck, vsRoundIndex],
+  );
+
+  useEffect(() => {
+    setVsSpotifyConnections([loadSpotifyConnection(0), loadSpotifyConnection(1)]);
+    void completeSpotifyLoginFromUrl()
+      .then((result) => {
+        if (!result) {
+          return;
+        }
+
+        setVsSpotifyConnections((current) =>
+          current.map((connection, index) =>
+            index === result.playerIndex ? result.connection : connection,
+          ),
+        );
+      })
+      .catch(() => {
+        // Ignore callback failures and leave the player disconnected.
+      });
+  }, []);
 
   useEffect(() => {
     const value = window.localStorage.getItem(HIGH_SCORE_STORAGE_KEY);
@@ -925,6 +1123,58 @@ function App() {
       ? countdownSecond(jamTimeRemainingMs)
       : null;
 
+  const phoneQuery = typeof window === 'undefined' ? '' : window.location.search;
+  const phoneParams = useMemo(() => {
+    const params = new URLSearchParams(phoneQuery);
+    const mode = params.get('mode');
+    const lobbyCode = params.get('lobby') || '';
+    const player = Number(params.get('player'));
+
+    return {
+      isPhoneMode: mode === 'phone' && Boolean(lobbyCode) && (player === 1 || player === 2),
+      lobbyCode,
+      playerSlot: player === 1 || player === 2 ? player : null,
+    };
+  }, [phoneQuery]);
+
+  useEffect(() => {
+    if (phoneParams.isPhoneMode || typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const routePhase = params.get('phase');
+    const routeGame = parseGameSelection(params.get('game'));
+
+    if (routeGame) {
+      setSelectedGame(routeGame);
+    }
+
+    if (routePhase && ROUTABLE_PHASES.has(routePhase)) {
+      setGamePhase(routePhase as typeof gamePhase);
+      return;
+    }
+
+    setGamePhase('lobby');
+  }, [phoneParams.isPhoneMode, setGamePhase, setSelectedGame]);
+
+  useEffect(() => {
+    if (phoneParams.isPhoneMode || typeof window === 'undefined') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    params.set('phase', gamePhase);
+
+    if (selectedGame) {
+      params.set('game', selectedGame);
+    } else {
+      params.delete('game');
+    }
+
+    window.history.replaceState({}, document.title, `${window.location.pathname}?${params.toString()}`);
+  }, [gamePhase, phoneParams.isPhoneMode, selectedGame]);
+
   const renderLiveStage = () => (
     <CameraView isRunning={isSessionRunning} onVideoElementChange={handleVideoElementChange}>
       {(video) => (
@@ -940,12 +1190,73 @@ function App() {
   );
 
   const renderPhase = () => {
+    if (phoneParams.isPhoneMode && phoneParams.playerSlot) {
+      return (
+        <PhonePlayerScreen
+          lobbyCode={phoneParams.lobbyCode}
+          playerSlot={phoneParams.playerSlot}
+        />
+      );
+    }
+
     switch (gamePhase) {
+      case 'lobby':
+        return (
+          <LobbyScreen onContinueToGames={handleOpenGameLauncher} onOpenGame={handleSelectGame} />
+        );
+
       case 'home':
-        return <HomeScreen onSelectGame={handleSelectGame} />;
+        return <HomeScreen onSelectGame={handleSelectGame} onBackToLobby={handleOpenLobby} />;
 
       case 'setup':
-        return <SetupScreen onStartSession={handleSetupStart} />;
+        return <SetupScreen onStartSession={handleSetupStart} onBackToMenu={handleBackToMenu} />;
+
+      case 'vs_setup':
+        return (
+          <VsSetupScreen
+            players={vsPlayers}
+            spotifyConnections={vsSpotifyConnections}
+            spotifyEnabled={hasSpotifyClientConfig()}
+            roundCount={vsRoundCount}
+            selectedCategories={vsSelectedCategories}
+            onPlayerChange={handleVsPlayerChange}
+            onConnectSpotify={handleConnectSpotify}
+            onDisconnectSpotify={handleDisconnectSpotify}
+            onRoundCountChange={setVsRoundCount}
+            onToggleCategory={handleToggleVsCategory}
+            onStartBattle={handleStartVsBattle}
+            onBackToMenu={handleBackToMenu}
+          />
+        );
+
+      case 'vs_battle':
+        return (
+          <VsBattleScreen
+            players={vsPlayers}
+            spotifyConnections={vsSpotifyConnections}
+            scores={vsScores}
+            roundIndex={vsRoundIndex}
+            roundCount={vsRoundCount}
+            currentCategory={vsRoundDeck[vsRoundIndex] || 'Best Collaboration'}
+            history={vsRoundHistory}
+            currentTrack={selectedTracks[(vsRoundIndex % 2) + 1] || vsRoundTracks[vsRoundIndex + 1] || null}
+            onAwardRound={handleAwardVsRound}
+            onBackToSetup={handleChangeSetup}
+          />
+        );
+
+      case 'vs_results':
+        return (
+          <VsResultsScreen
+            players={vsPlayers}
+            scores={vsScores}
+            history={vsRoundHistory}
+            roundTracks={vsRoundTracks}
+            onPlayAgain={handlePlayAgain}
+            onChangeSetup={handleChangeSetup}
+            onBackToMenu={handleBackToMenu}
+          />
+        );
 
       case 'vs_placeholder':
         return (
@@ -1046,7 +1357,42 @@ function App() {
     }
   };
 
-  return <main className="app-shell">{renderPhase()}</main>;
+  const showLobbyHeader = !phoneParams.isPhoneMode;
+
+  return (
+    <main className="app-shell">
+      {showLobbyHeader ? (
+        <header className="lobby-status-bar" aria-label="Lobby Status Bar">
+          <div className="lobby-status-bar__meta">
+            <span className={`lobby-status-bar__pill lobby-status-bar__pill--${socketStatus}`}>
+              {socketStatus === 'connected' ? 'WS Connected' : 'WS Disconnected'}
+            </span>
+            <span className="lobby-status-bar__item">
+              Lobby: <strong>{lobby?.code || 'Not ready'}</strong>
+            </span>
+            <span className="lobby-status-bar__item">
+              Phones: <strong>{accessPoint?.phoneCount || 0}</strong>
+            </span>
+            {selectedGame ? (
+              <span className="lobby-status-bar__item">
+                Game: <strong>{getGameById(selectedGame).title}</strong>
+              </span>
+            ) : null}
+          </div>
+          <button type="button" className="phase-action lobby-status-bar__action" onClick={handleOpenLobby}>
+            Back To Lobby
+          </button>
+        </header>
+      ) : null}
+      {renderPhase()}
+    </main>
+  );
 }
 
-export default App;
+export default function App() {
+  return (
+    <LobbySessionProvider>
+      <AppContent />
+    </LobbySessionProvider>
+  );
+}

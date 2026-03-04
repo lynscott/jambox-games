@@ -62,16 +62,21 @@ src/
   state/
     store.ts
   App.tsx
+server/
+  ws-lobby-server.mjs
 ```
 
 ## Setup
 
 ```bash
 npm install
+npm run ws:server
 npm run dev
 ```
 
 Open the local URL shown by Vite (usually `http://localhost:5173`).
+
+For phone pairing, open the same app URL on a phone on the same network and use the Setup screen pairing panel.
 
 ## Demo Flow
 
@@ -129,11 +134,19 @@ Open the local URL shown by Vite (usually `http://localhost:5173`).
 
 ```bash
 npm run dev
+npm run ws:server
 npm run test
 npm run build
 ```
 
+## WebSocket Lobby + Pairing
+
+- Run `npm run ws:server` to start the lobby server on `ws://localhost:8080`.
+- In the app Setup screen, use **Lobby + Phone Pairing**:
+  - Host/TV: connect, create a lobby, create one or more rooms.
+  - Phone: connect, enter lobby code + room pair code, then pair.
+- Override socket URL in frontend with `VITE_WS_URL`, for example `VITE_WS_URL=ws://192.168.1.20:8080`.
+
 ## Notes
 
-- This MVP is local-only (no networking, no paid APIs, no external services).
 - Conductor behavior is deterministic rule logic (no LLM calls).

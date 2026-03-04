@@ -3,8 +3,12 @@ export type ZoneId = 'left' | 'middle' | 'right';
 export type Quantization = '4n' | '8n' | '16n';
 
 export type GamePhase =
+  | 'lobby'
   | 'home'
   | 'setup'
+  | 'vs_setup'
+  | 'vs_battle'
+  | 'vs_results'
   | 'permissions'
   | 'calibration'
   | 'tutorial'

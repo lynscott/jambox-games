@@ -7,7 +7,7 @@ export interface GameCatalogEntry {
   detail: string;
   status: 'Available' | 'Coming Soon';
   accent: 'jam-hero' | 'vs' | 'on-beat' | 'lyrics';
-  phase: Extract<GamePhase, 'setup' | 'vs_placeholder' | 'on_beat_placeholder' | 'lyrics_placeholder'>;
+  phase: Extract<GamePhase, 'setup' | 'vs_setup' | 'vs_placeholder' | 'on_beat_placeholder' | 'lyrics_placeholder'>;
 }
 
 export const GAME_CATALOG: GameCatalogEntry[] = [
@@ -24,10 +24,10 @@ export const GAME_CATALOG: GameCatalogEntry[] = [
     id: 'vs',
     title: 'Vs.',
     shortDescription: 'Face off in a fast musical showdown.',
-    detail: 'Competitive score battles and reaction-based duels.',
-    status: 'Coming Soon',
+    detail: 'Song-for-song battle cards across genres, words, eras, and regional pride.',
+    status: 'Available',
     accent: 'vs',
-    phase: 'vs_placeholder',
+    phase: 'vs_setup',
   },
   {
     id: 'on_beat',
