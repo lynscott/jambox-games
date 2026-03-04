@@ -17,6 +17,10 @@ const HOST_MIC_TRIGGER_THRESHOLD = 0.045;
 const HOST_MIC_DEBOUNCE_MS = 450;
 const HOST_CLIP_DURATION_MS = 1100;
 
+function getOnBeatTranscriptionInstruction(expectedWord: string) {
+  return `Did the speaker say the word "${expectedWord}"? Return only the single spoken word you hear.`;
+}
+
 type AttemptLabel = 'Host';
 type OnBeatLoopMode = 'preview' | 'test';
 
@@ -514,7 +518,7 @@ export function OnBeatGameScreen({ sessionId, difficulty, onComplete, onBackToSe
           return '';
         }
         setTranscriptionStatus(`Transcribing box ${activeBeat.beatInRound}...`);
-        return transcribeAudioBlob(clip, `Expected one spoken English word: ${promptWord}`);
+        return transcribeAudioBlob(clip, getOnBeatTranscriptionInstruction(promptWord));
       })
       .then((text) => {
         if (runToken !== micRunTokenRef.current || judgementsRef.current[promptIndex]) {

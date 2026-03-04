@@ -21,6 +21,10 @@ const MIC_TRIGGER_THRESHOLD = 0.045;
 const MIC_DEBOUNCE_MS = 450;
 const SPEECH_ONSET_GRACE_MS = 1_500;
 
+function getOnBeatTranscriptionInstruction(expectedWord: string) {
+  return `Did the speaker say the word "${expectedWord}"? Return only the single spoken word you hear.`;
+}
+
 function normalizeSpeechValue(value: string) {
   return value
     .toLowerCase()
@@ -353,7 +357,7 @@ function OnBeatPhoneController({
         setTranscriptionStatus(`Transcribing prompt ${onBeatState.promptIndex! + 1}...`);
         return transcribeAudioBlob(
           clip,
-          `Expected one spoken English word: ${promptSnapshot.promptWord}`,
+          getOnBeatTranscriptionInstruction(promptSnapshot.promptWord),
         );
       })
       .then((text) => {
@@ -476,32 +480,6 @@ interface PhonePlayerScreenProps {
   playerSlot: 1 | 2;
   expectedGame?: GameSelection | null;
 }
-
-interface SpeechRecognitionLike extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-}
-
-interface SpeechRecognitionEventLike extends Event {
-  resultIndex: number;
-  results: ArrayLike<{
-    isFinal: boolean;
-    0: { transcript: string };
-  }>;
-}
-
-interface SpeechRecognitionErrorEventLike extends Event {
-  error?: string;
-  message?: string;
-}
-
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 interface LyricsPhoneControllerProps {
   playerSlot: 1 | 2;
   pairedRoomName: string;
