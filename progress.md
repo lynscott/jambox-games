@@ -99,3 +99,43 @@ Original prompt: checkout the changes we made to improve the UI below. we implem
     - `hasLoopTrack: 0`
     - HUD and results score elements render (`hudScore: "0"`, `resultsTotal: "0"`)
     - screenshot: `output/debug-no-track-no-crash.png`
+
+## Jam Box Games Launcher
+- Added a new `home` entry phase so the app now opens on a main launcher screen instead of going straight into `Jam Hero` setup.
+- Added reusable game catalog metadata in `src/game/catalog.ts`.
+- Added new screens:
+  - `src/components/screens/HomeScreen.tsx`
+  - `src/components/screens/ComingSoonScreen.tsx`
+- Added launcher tests and app-flow coverage:
+  - `src/components/screens/HomeScreen.test.tsx`
+  - `src/components/screens/ComingSoonScreen.test.tsx`
+  - `src/App.home-flow.test.tsx`
+- Added a `Back To Menu` action on results so the launcher is reachable after a run.
+- `Jam Hero` now routes straight into the existing setup flow from the launcher.
+- `Vs.`, `On Beat`, and `Know Your Lyrics` route to placeholder screens for now.
+- Verification:
+  - `npm run test` passing (26 files / 65 tests)
+  - `npm run build` passing
+  - browser verification via Playwright client:
+  - launcher state: `output/home-launcher/state-0.json`
+
+## Launcher Brand Asset
+- Replaced the temporary CSS-only `Jam Box Games` header mark with the real asset at `public/jambox-games-logo.png`.
+- Updated the launcher hero styling in `src/App.css` to frame the image inside the existing neon card without changing the card grid or phase flow.
+- User requested no dedicated logo test, so existing launcher/app-flow coverage was kept as-is.
+- Verification:
+  - `npm run test -- src/components/screens/HomeScreen.test.tsx src/App.home-flow.test.tsx`
+  - `npm run build`
+  - browser capture via web-game client:
+    - screenshot: `output/home-logo-check/shot-0.png`
+    - state: `output/home-logo-check/state-0.json` (`mode: "home"`)
+    - `Vs.` placeholder state: `output/home-vs/state-0.json`
+    - `Jam Hero` setup state: `output/home-jam-hero/state-0.json`
+    - screenshots reviewed:
+      - `output/home-launcher/shot-0.png`
+      - `output/home-vs/shot-0.png`
+      - `output/home-jam-hero/shot-0.png`
+- Lint still fails due pre-existing issues outside this launcher work:
+  - `src/components/CameraView.tsx`
+  - `src/components/OverlayCanvas.tsx`
+  - `src/components/jam/TimingCallout.tsx`

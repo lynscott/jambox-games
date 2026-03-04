@@ -6,6 +6,7 @@ interface ResultsScreenProps {
   isNewHighScore: boolean;
   onPlayAgain: () => void;
   onChangeSetup: () => void;
+  onBackToMenu: () => void;
 }
 
 function safeNumber(value: unknown, fallback = 0): number {
@@ -18,6 +19,7 @@ export function ResultsScreen({
   isNewHighScore,
   onPlayAgain,
   onChangeSetup,
+  onBackToMenu,
 }: ResultsScreenProps) {
   const total = safeNumber(score.total);
   const timing = safeNumber(score.timing);
@@ -62,6 +64,9 @@ export function ResultsScreen({
           </button>
           <button type="button" className="phase-action" onClick={onChangeSetup}>
             Change Setup
+          </button>
+          <button type="button" className="phase-action" onClick={onBackToMenu}>
+            Back To Menu
           </button>
         </div>
       </div>

@@ -21,6 +21,7 @@ describe('ResultsScreen safety', () => {
         isNewHighScore={false}
         onPlayAgain={vi.fn()}
         onChangeSetup={vi.fn()}
+        onBackToMenu={vi.fn()}
       />,
     );
 

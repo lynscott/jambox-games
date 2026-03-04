@@ -2,7 +2,19 @@ export type ZoneId = 'left' | 'middle' | 'right';
 
 export type Quantization = '4n' | '8n' | '16n';
 
-export type GamePhase = 'setup' | 'permissions' | 'calibration' | 'tutorial' | 'jam' | 'results';
+export type GamePhase =
+  | 'home'
+  | 'setup'
+  | 'permissions'
+  | 'calibration'
+  | 'tutorial'
+  | 'jam'
+  | 'results'
+  | 'vs_placeholder'
+  | 'on_beat_placeholder'
+  | 'lyrics_placeholder';
+
+export type GameSelection = 'jam_hero' | 'vs' | 'on_beat' | 'know_your_lyrics';
 
 export type TimingGrade = 'perfect' | 'good' | 'late' | 'miss';
 

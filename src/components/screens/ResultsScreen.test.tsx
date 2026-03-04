@@ -17,6 +17,7 @@ describe('ResultsScreen', () => {
   it('renders score breakdown and result actions', () => {
     const onPlayAgain = vi.fn();
     const onChangeSetup = vi.fn();
+    const onBackToMenu = vi.fn();
 
     render(
       <ResultsScreen
@@ -25,6 +26,7 @@ describe('ResultsScreen', () => {
         isNewHighScore={false}
         onPlayAgain={onPlayAgain}
         onChangeSetup={onChangeSetup}
+        onBackToMenu={onBackToMenu}
       />,
     );
 
@@ -35,8 +37,10 @@ describe('ResultsScreen', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /play again/i }));
     fireEvent.click(screen.getByRole('button', { name: /change setup/i }));
+    fireEvent.click(screen.getByRole('button', { name: /back to menu/i }));
 
     expect(onPlayAgain).toHaveBeenCalledTimes(1);
     expect(onChangeSetup).toHaveBeenCalledTimes(1);
+    expect(onBackToMenu).toHaveBeenCalledTimes(1);
   });
 });

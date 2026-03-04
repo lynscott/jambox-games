@@ -123,7 +123,7 @@ export const createInitialState = () => ({
     middle: null,
     right: null,
   },
-  gamePhase: 'setup' as const,
+  gamePhase: 'home' as const,
   jamDurationSec: 60 as const,
   jamTimeRemainingMs: 60_000,
   tutorialBeatsCompleted: 0,

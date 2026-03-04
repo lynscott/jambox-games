@@ -3,10 +3,13 @@ import { CameraView } from './components/CameraView';
 import { OverlayCanvas } from './components/OverlayCanvas';
 import { JamScreen } from './components/screens/JamScreen';
 import { CalibrationScreen } from './components/screens/CalibrationScreen';
+import { ComingSoonScreen } from './components/screens/ComingSoonScreen';
+import { HomeScreen } from './components/screens/HomeScreen';
 import { PermissionsScreen } from './components/screens/PermissionsScreen';
 import { ResultsScreen } from './components/screens/ResultsScreen';
 import { SetupScreen } from './components/screens/SetupScreen';
 import { TutorialScreen } from './components/screens/TutorialScreen';
+import { getGameById } from './game/catalog';
 import { computeLoopArrangement, type LoopArrangement } from './game/arrangement';
 import {
   applyEvent,
@@ -27,7 +30,7 @@ import { computeZoneFeatures, createInitialFeatureState } from './pose/features'
 import { loadMoveNet, type PoseSample } from './pose/movenet';
 import { assignZones, createInitialZoningState } from './pose/zoning';
 import { useAppStore } from './state/store';
-import type { LaneInstrument, ZoneId } from './types';
+import type { GameSelection, LaneInstrument, ZoneId } from './types';
 import './App.css';
 
 const SKELETON_EDGES: Array<[string, string]> = [
@@ -188,6 +191,15 @@ function App() {
     setGamePhase('permissions');
   }, [prepareNewRun, setGamePhase, setSessionRunning]);
 
+  const handleSelectGame = useCallback(
+    (gameId: GameSelection) => {
+      prepareNewRun();
+      setSessionRunning(false);
+      setGamePhase(getGameById(gameId).phase);
+    },
+    [prepareNewRun, setGamePhase, setSessionRunning],
+  );
+
   const handleRequestPermissions = useCallback(async () => {
     setIsPermissionBusy(true);
 
@@ -253,6 +265,12 @@ function App() {
     prepareNewRun();
     setSessionRunning(false);
     setGamePhase('setup');
+  }, [prepareNewRun, setGamePhase, setSessionRunning]);
+
+  const handleBackToMenu = useCallback(() => {
+    prepareNewRun();
+    setSessionRunning(false);
+    setGamePhase('home');
   }, [prepareNewRun, setGamePhase, setSessionRunning]);
 
   useEffect(() => {
@@ -927,8 +945,38 @@ function App() {
 
   const renderPhase = () => {
     switch (gamePhase) {
+      case 'home':
+        return <HomeScreen onSelectGame={handleSelectGame} />;
+
       case 'setup':
         return <SetupScreen onStartSession={handleSetupStart} />;
+
+      case 'vs_placeholder':
+        return (
+          <ComingSoonScreen
+            title="Vs."
+            description="Face off in a fast musical showdown."
+            onBack={handleBackToMenu}
+          />
+        );
+
+      case 'on_beat_placeholder':
+        return (
+          <ComingSoonScreen
+            title="On Beat"
+            description="Lock into timing challenges and survive the tempo."
+            onBack={handleBackToMenu}
+          />
+        );
+
+      case 'lyrics_placeholder':
+        return (
+          <ComingSoonScreen
+            title="Know Your Lyrics"
+            description="Finish the line and prove your music memory."
+            onBack={handleBackToMenu}
+          />
+        );
 
       case 'permissions':
         return (
@@ -994,6 +1042,7 @@ function App() {
             isNewHighScore={isNewHighScore}
             onPlayAgain={handlePlayAgain}
             onChangeSetup={handleChangeSetup}
+            onBackToMenu={handleBackToMenu}
           />
         );
 
