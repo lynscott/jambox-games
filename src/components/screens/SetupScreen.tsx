@@ -4,6 +4,7 @@ import type { LaneInstrument, ZoneId } from '../../types';
 
 interface SetupScreenProps {
   onStartSession: () => void;
+  onBackToMenu: () => void;
 }
 
 const ZONE_LABELS: Record<ZoneId, string> = {
@@ -18,21 +19,25 @@ const INSTRUMENT_OPTIONS: Array<{ value: LaneInstrument; label: string }> = [
   { value: 'keys', label: 'Keys Pad' },
 ];
 
-export function SetupScreen({ onStartSession }: SetupScreenProps) {
+export function SetupScreen({ onStartSession, onBackToMenu }: SetupScreenProps) {
   const currentTrackId = useAppStore((state) => state.currentTrackId);
   const lanes = useAppStore((state) => state.lanes);
   const jamDurationSec = useAppStore((state) => state.jamDurationSec);
+  const selectedGame = useAppStore((state) => state.selectedGame);
   const setJamDuration = useAppStore((state) => state.setJamDuration);
   const setLaneInstrument = useAppStore((state) => state.setLaneInstrument);
   const track = TRACK_PRESETS[currentTrackId];
+  const isVsSetup = selectedGame === 'vs';
 
   return (
     <section className="phase-screen setup-screen" aria-label="Setup Screen">
       <div className="phase-card">
-        <p className="phase-kicker">AI Garage Band</p>
-        <h1 className="phase-title">Session Setup</h1>
+        <p className="phase-kicker">Jam Box Games</p>
+        <h1 className="phase-title">{isVsSetup ? 'Vs. Match Setup' : 'Jam Hero Setup'}</h1>
         <p className="phase-copy">
-          Pick instruments for each lane and lock the run format. Selections stay fixed once session starts.
+          {isVsSetup
+            ? 'Lobby is already live. Keep the same room, assign prototype lanes, and start the first head-to-head round.'
+            : 'Lobby is already live. Pick instruments for each lane and lock the run format before the jam starts.'}
         </p>
 
         <div className="setup-track">
@@ -73,7 +78,10 @@ export function SetupScreen({ onStartSession }: SetupScreenProps) {
         </label>
 
         <button type="button" className="phase-cta" onClick={onStartSession}>
-          Start Session
+          {isVsSetup ? 'Start Match' : 'Start Session'}
+        </button>
+        <button type="button" className="phase-action" onClick={onBackToMenu}>
+          Back to Menu
         </button>
       </div>
     </section>

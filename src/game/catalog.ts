@@ -7,7 +7,7 @@ export interface GameCatalogEntry {
   detail: string;
   status: 'Available' | 'Coming Soon';
   accent: 'jam-hero' | 'vs' | 'on-beat' | 'lyrics';
-  phase: Extract<GamePhase, 'setup' | 'vs_placeholder' | 'on_beat_placeholder' | 'lyrics_placeholder'>;
+  phase: Extract<GamePhase, 'setup' | 'vs_setup' | 'on_beat_setup' | 'lyrics_setup' | 'vs_placeholder'>;
 }
 
 export const GAME_CATALOG: GameCatalogEntry[] = [
@@ -24,28 +24,28 @@ export const GAME_CATALOG: GameCatalogEntry[] = [
     id: 'vs',
     title: 'Vs.',
     shortDescription: 'Face off in a fast musical showdown.',
-    detail: 'Competitive score battles and reaction-based duels.',
-    status: 'Coming Soon',
+    detail: 'Song-for-song battle cards across genres, words, eras, and regional pride.',
+    status: 'Available',
     accent: 'vs',
-    phase: 'vs_placeholder',
+    phase: 'vs_setup',
   },
   {
     id: 'on_beat',
     title: 'On Beat',
     shortDescription: 'Lock into timing challenges and survive the tempo.',
-    detail: 'Precision rhythm gauntlets built around timing streaks.',
-    status: 'Coming Soon',
+    detail: 'Say the prompt exactly on beat against the Moo Ma Ga Gai challenge loop.',
+    status: 'Available',
     accent: 'on-beat',
-    phase: 'on_beat_placeholder',
+    phase: 'on_beat_setup',
   },
   {
     id: 'know_your_lyrics',
     title: 'Know Your Lyrics',
     shortDescription: 'Finish the line and prove your music memory.',
     detail: 'Sing, guess, and complete famous lyrics under pressure.',
-    status: 'Coming Soon',
+    status: 'Available',
     accent: 'lyrics',
-    phase: 'lyrics_placeholder',
+    phase: 'lyrics_setup',
   },
 ];
 

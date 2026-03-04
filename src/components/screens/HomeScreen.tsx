@@ -1,11 +1,11 @@
 import { GAME_CATALOG } from '../../game/catalog';
 import type { GameSelection } from '../../types';
-
 interface HomeScreenProps {
   onSelectGame: (gameId: GameSelection) => void;
+  onBackToLobby: () => void;
 }
 
-export function HomeScreen({ onSelectGame }: HomeScreenProps) {
+export function HomeScreen({ onSelectGame, onBackToLobby }: HomeScreenProps) {
   return (
     <section className="phase-screen home-screen" aria-label="Home Screen">
       <div className="home-brand">
@@ -18,8 +18,11 @@ export function HomeScreen({ onSelectGame }: HomeScreenProps) {
         </div>
         <p className="phase-kicker">Arcade Music Collection</p>
         <p className="phase-copy home-screen__copy">
-          Pick a mode, step into the lights, and let the room become the controller.
+          Pick the game flow for this room. Lobby and phone pairing now live on their own screen.
         </p>
+        <button type="button" className="phase-action home-screen__back" onClick={onBackToLobby}>
+          Back To Lobby
+        </button>
       </div>
 
       <div className="home-grid">

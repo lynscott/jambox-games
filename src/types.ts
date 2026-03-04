@@ -3,16 +3,24 @@ export type ZoneId = 'left' | 'middle' | 'right';
 export type Quantization = '4n' | '8n' | '16n';
 
 export type GamePhase =
+  | 'lobby'
   | 'home'
   | 'setup'
+  | 'vs_setup'
+  | 'vs_battle'
+  | 'vs_results'
+  | 'on_beat_setup'
+  | 'on_beat_play'
+  | 'on_beat_results'
+  | 'lyrics_setup'
+  | 'lyrics_play'
+  | 'lyrics_results'
   | 'permissions'
   | 'calibration'
   | 'tutorial'
   | 'jam'
   | 'results'
-  | 'vs_placeholder'
-  | 'on_beat_placeholder'
-  | 'lyrics_placeholder';
+  | 'vs_placeholder';
 
 export type GameSelection = 'jam_hero' | 'vs' | 'on_beat' | 'know_your_lyrics';
 

@@ -62,16 +62,21 @@ src/
   state/
     store.ts
   App.tsx
+server/
+  ws-lobby-server.mjs
 ```
 
 ## Setup
 
 ```bash
 npm install
+npm run ws:server
 npm run dev
 ```
 
 Open the local URL shown by Vite (usually `http://localhost:5173`).
+
+For phone pairing, open the same app URL on a phone on the same network and use the Setup screen pairing panel.
 
 ## Demo Flow
 
@@ -101,6 +106,46 @@ Open the local URL shown by Vite (usually `http://localhost:5173`).
 - `AI Conductor`: keep deterministic assist layer on/off
 - `Calibrate`: zone anchor lock using raised-hands gesture
 
+## Know Your Lyrics (MVP)
+
+- Host flow: `Home -> Know Your Lyrics -> Start Lyrics Mode`
+- Phone flow: pair phone, then speak each line shown in the phone controller while the host plays the instrumental.
+- Scoring combines:
+  - lyric overlap (token sequence match)
+  - timing offset (spoken line time vs cue midpoint)
+
+### Import Instrumentals + Timestamped Lyrics
+
+This MVP includes a local importer for YouTube instrumentals and `.lrc` timestamp files.
+
+1. Install `yt-dlp` on your machine.
+2. Create an `.lrc` file with `[mm:ss.xx] lyric line` entries.
+3. Run:
+
+```bash
+node server/import-lyrics-track.mjs \
+  --youtube "https://www.youtube.com/watch?v=YOUR_VIDEO_ID" \
+  --title "Song Title" \
+  --artist "Artist Name" \
+  --lrc "/absolute/or/relative/path/to/song.lrc"
+```
+
+The command downloads audio to `public/audio/lyrics/<track-id>.mp3` and injects the new track into `src/game/lyricsCatalog.generated.ts`.
+
+### Live YouTube Song Browser
+
+`Know Your Lyrics` now supports live YouTube instrumental browsing and search in the setup screen.
+
+- Add `VITE_YOUTUBE_API_KEY` to your local env to enable YouTube search/top results.
+- Song search uses YouTube Data API `search.list` plus `videos.list`.
+- Lyrics are fetched on selection from `lyrics.ovh`, then split into blind scoring rounds automatically.
+
+Example:
+
+```bash
+VITE_YOUTUBE_API_KEY=your_key_here
+```
+
 ## Troubleshooting
 
 ### Camera permission denied
@@ -129,11 +174,19 @@ Open the local URL shown by Vite (usually `http://localhost:5173`).
 
 ```bash
 npm run dev
+npm run ws:server
 npm run test
 npm run build
 ```
 
+## WebSocket Lobby + Pairing
+
+- Run `npm run ws:server` to start the lobby server on `ws://localhost:8080`.
+- In the app Setup screen, use **Lobby + Phone Pairing**:
+  - Host/TV: connect, create a lobby, create one or more rooms.
+  - Phone: connect, enter lobby code + room pair code, then pair.
+- Override socket URL in frontend with `VITE_WS_URL`, for example `VITE_WS_URL=ws://192.168.1.20:8080`.
+
 ## Notes
 
-- This MVP is local-only (no networking, no paid APIs, no external services).
 - Conductor behavior is deterministic rule logic (no LLM calls).
