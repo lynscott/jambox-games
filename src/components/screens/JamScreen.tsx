@@ -38,7 +38,7 @@ export function JamScreen({
         <GearMenu onToggleSession={onToggleSession} />
       </div>
 
-      <LaneBar lanePlayable={arrangement.activeZones} strikeWindowActive={strikeWindowActive} />
+      <LaneBar lanePlayable={arrangement.activeZones} />
     </div>
   );
 }

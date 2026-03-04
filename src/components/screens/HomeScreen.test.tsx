@@ -8,7 +8,7 @@ describe('HomeScreen', () => {
 
     render(<HomeScreen onSelectGame={onSelectGame} />);
 
-    expect(screen.getByRole('heading', { name: /jam box games/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /jam box games logo/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /jam hero/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^vs\.$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /on beat/i })).toBeInTheDocument();

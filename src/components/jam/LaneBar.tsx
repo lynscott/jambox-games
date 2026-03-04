@@ -6,10 +6,9 @@ const ZONES: ZoneId[] = ['left', 'middle', 'right'];
 
 interface LaneBarProps {
   lanePlayable: Record<ZoneId, boolean>;
-  strikeWindowActive: boolean;
 }
 
-export function LaneBar({ lanePlayable, strikeWindowActive }: LaneBarProps) {
+export function LaneBar({ lanePlayable }: LaneBarProps) {
   const lanes = useAppStore((s) => s.lanes);
 
   return (
@@ -20,7 +19,6 @@ export function LaneBar({ lanePlayable, strikeWindowActive }: LaneBarProps) {
           zone={zone}
           lane={lanes[zone]}
           lanePlayable={lanePlayable[zone]}
-          strikeWindowActive={strikeWindowActive}
         />
       ))}
     </footer>

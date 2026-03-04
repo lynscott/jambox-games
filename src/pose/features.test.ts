@@ -12,7 +12,7 @@ function pose(points: Array<{ name: string; x: number; y: number; score?: number
 }
 
 describe('computeZoneFeatures', () => {
-  it('extracts wrist velocity, torso y, angle and rolling energy', () => {
+  it('extracts motion deltas, posture signals, torso control, and rolling energy', () => {
     let state = createInitialFeatureState();
 
     const base = {
@@ -52,8 +52,65 @@ describe('computeZoneFeatures', () => {
     });
 
     expect(moved.features.left.wristVelocity).toBeGreaterThan(0.1);
+    expect(moved.features.left.wristDeltaY).toBeLessThan(0);
     expect(moved.features.left.torsoY).toBeCloseTo(251, 0);
     expect(Math.abs(moved.features.left.shoulderWristAngle)).toBeGreaterThan(0);
+    expect(moved.features.left.occupied).toBe(true);
+    expect(moved.features.left.handsRaised).toBe(false);
+    expect(moved.features.left.handsOpen).toBe(false);
     expect(moved.features.left.energy).toBeGreaterThan(0);
+
+    const raised = computeZoneFeatures({
+      zonePoses: {
+        left: pose([
+          { name: 'left_wrist', x: 50, y: 70 },
+          { name: 'right_wrist', x: 190, y: 74 },
+          { name: 'left_shoulder', x: 90, y: 120 },
+          { name: 'right_shoulder', x: 140, y: 122 },
+          { name: 'left_hip', x: 98, y: 250 },
+          { name: 'right_hip', x: 142, y: 252 },
+        ]),
+        middle: null,
+        right: null,
+      },
+      timestamp: 200,
+      state: moved.nextState,
+    });
+
+    expect(raised.features.left.handsRaised).toBe(true);
+    expect(raised.features.left.handsOpen).toBe(true);
+  });
+
+  it('holds occupancy briefly across inference drops, then clears it', () => {
+    let state = createInitialFeatureState();
+
+    ({ nextState: state } = computeZoneFeatures({
+      zonePoses: {
+        left: pose([
+          { name: 'left_wrist', x: 100, y: 200 },
+          { name: 'right_wrist', x: 150, y: 210 },
+          { name: 'left_shoulder', x: 90, y: 120 },
+          { name: 'right_shoulder', x: 140, y: 122 },
+        ]),
+        middle: null,
+        right: null,
+      },
+      timestamp: 1000,
+      state,
+    }));
+
+    const briefDrop = computeZoneFeatures({
+      zonePoses: { left: null, middle: null, right: null },
+      timestamp: 1180,
+      state,
+    });
+    expect(briefDrop.features.left.occupied).toBe(true);
+
+    const cleared = computeZoneFeatures({
+      zonePoses: { left: null, middle: null, right: null },
+      timestamp: 1405,
+      state: briefDrop.nextState,
+    });
+    expect(cleared.features.left.occupied).toBe(false);
   });
 });

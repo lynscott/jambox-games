@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { MIDNIGHT_SOUL_TRACK } from '../music/tracks';
 import type {
   AppDiagnostics,
   GamePhase,
@@ -6,6 +7,7 @@ import type {
   LaneState,
   Quantization,
   ScoreSnapshot,
+  TrackId,
   ZoneFeatureSnapshot,
   ZoneId,
   ZoneOccupantSnapshot,
@@ -24,6 +26,7 @@ export interface AppState {
   zoneOccupants: Record<ZoneId, ZoneOccupantSnapshot | null>;
   calibrationLocks: Record<ZoneId, number | null>;
   gamePhase: GamePhase;
+  currentTrackId: TrackId;
   jamDurationSec: 60 | 90;
   jamTimeRemainingMs: number;
   tutorialBeatsCompleted: number;
@@ -59,9 +62,13 @@ export interface AppState {
 }
 
 const DEFAULT_ZONE_FEATURE: ZoneFeatureSnapshot = {
+  occupied: false,
   wristVelocity: 0,
+  wristDeltaY: 0,
   torsoY: 0,
   shoulderWristAngle: 0,
+  handsRaised: false,
+  handsOpen: false,
   energy: 0,
 };
 
@@ -75,38 +82,55 @@ const DEFAULT_SCORE: ScoreSnapshot = {
   multiplier: 1,
 };
 
+const DEFAULT_GESTURE_PHASES: AppDiagnostics['gesturePhase'] = {
+  left: 'idle',
+  middle: 'idle',
+  right: 'idle',
+};
+
+const DEFAULT_DIAGNOSTICS: AppDiagnostics = {
+  fps: 0,
+  inferenceMs: 0,
+  trackTitle: MIDNIGHT_SOUL_TRACK.title,
+  currentChord: 'Am',
+  personCount: 0,
+  gesturePhase: { ...DEFAULT_GESTURE_PHASES },
+  zoneEnergy: {
+    left: 0,
+    middle: 0,
+    right: 0,
+  },
+  movementToAudioMs: 0,
+};
+
 const DEFAULT_LANE: LaneState = {
-  instrument: 'rhythm',
+  instrument: 'drums',
+  occupied: false,
+  status: 'no_player',
   activity: 0,
   lastGrade: null,
   hitCount: 0,
+  gesturePhase: 'idle',
 };
 
 const DEFAULT_LANES: Record<ZoneId, LaneState> = {
-  left: { ...DEFAULT_LANE, instrument: 'rhythm' },
-  middle: { ...DEFAULT_LANE, instrument: 'bass' },
-  right: { ...DEFAULT_LANE, instrument: 'pad' },
+  left: { ...DEFAULT_LANE, instrument: MIDNIGHT_SOUL_TRACK.laneInstruments.left },
+  middle: { ...DEFAULT_LANE, instrument: MIDNIGHT_SOUL_TRACK.laneInstruments.middle },
+  right: { ...DEFAULT_LANE, instrument: MIDNIGHT_SOUL_TRACK.laneInstruments.right },
 };
 
 export const createInitialState = () => ({
   isSessionRunning: false,
   isCalibrating: false,
   calibrationRequestToken: 0,
-  bpm: 110,
+  bpm: MIDNIGHT_SOUL_TRACK.bpm,
   quantization: '8n' as const,
   showSkeleton: true,
   conductorEnabled: true,
   diagnostics: {
-    fps: 0,
-    inferenceMs: 0,
-    currentChord: 'Am',
-    personCount: 0,
-    zoneEnergy: {
-      left: 0,
-      middle: 0,
-      right: 0,
-    },
-    movementToAudioMs: 0,
+    ...DEFAULT_DIAGNOSTICS,
+    gesturePhase: { ...DEFAULT_GESTURE_PHASES },
+    zoneEnergy: { ...DEFAULT_DIAGNOSTICS.zoneEnergy },
   },
   zoneFeatures: {
     left: DEFAULT_ZONE_FEATURE,
@@ -124,6 +148,7 @@ export const createInitialState = () => ({
     right: null,
   },
   gamePhase: 'home' as const,
+  currentTrackId: MIDNIGHT_SOUL_TRACK.id,
   jamDurationSec: 60 as const,
   jamTimeRemainingMs: 60_000,
   tutorialBeatsCompleted: 0,

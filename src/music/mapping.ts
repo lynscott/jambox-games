@@ -1,5 +1,16 @@
 import type { Conductor } from './conductor';
-import type { LaneInstrument, ZoneFeatureSnapshot, ZoneId } from '../types';
+import {
+  createInitialGestureIntentState,
+  updateGestureIntent,
+  type GestureIntentState,
+} from './gesture-intent';
+import type {
+  GestureIntentPhase,
+  LaneInstrument,
+  LaneStatus,
+  ZoneFeatureSnapshot,
+  ZoneId,
+} from '../types';
 
 export type MusicEvent =
   | {
@@ -25,10 +36,15 @@ export type MusicEvent =
       filterCutoff: number;
     };
 
+interface BassPoseTracker {
+  slot: number | null;
+  since: number | null;
+}
+
 export interface MappingState {
-  lastRhythmHitAt: Record<ZoneId, number>;
-  lastBassAt: Record<ZoneId, number>;
-  lastPadAt: Record<ZoneId, number>;
+  gesture: Record<ZoneId, GestureIntentState>;
+  bassPose: Record<ZoneId, BassPoseTracker>;
+  keysHoldStartedAt: Record<ZoneId, number | null>;
 }
 
 interface MappingParams {
@@ -43,42 +59,119 @@ interface MappingResult {
   events: MusicEvent[];
   nextState: MappingState;
   globalEnergy: number;
+  statuses: Record<ZoneId, LaneStatus>;
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function createInitialBassPose(): BassPoseTracker {
+  return {
+    slot: null,
+    since: null,
+  };
+}
+
 export function createInitialMappingState(): MappingState {
   return {
-    lastRhythmHitAt: {
-      left: -Infinity,
-      middle: -Infinity,
-      right: -Infinity,
+    gesture: {
+      left: createInitialGestureIntentState(),
+      middle: createInitialGestureIntentState(),
+      right: createInitialGestureIntentState(),
     },
-    lastBassAt: {
-      left: -Infinity,
-      middle: -Infinity,
-      right: -Infinity,
+    bassPose: {
+      left: createInitialBassPose(),
+      middle: createInitialBassPose(),
+      right: createInitialBassPose(),
     },
-    lastPadAt: {
-      left: -Infinity,
-      middle: -Infinity,
-      right: -Infinity,
+    keysHoldStartedAt: {
+      left: null,
+      middle: null,
+      right: null,
     },
   };
 }
 
-function mapAngleToBassNote(angle: number, conductor: Conductor): string {
+function mapAngleToBassSlot(angle: number, conductor: Conductor): { slot: number; note: string } {
   const chord = conductor.getChordVoicing(3);
   const normalized = clamp((angle + Math.PI) / (Math.PI * 2), 0, 0.9999);
-  const index = Math.floor(normalized * chord.length);
-  return conductor.constrainNoteToChord(chord[index]);
+  const slot = Math.floor(normalized * chord.length);
+  return {
+    slot,
+    note: conductor.constrainNoteToChord(chord[slot]),
+  };
 }
 
 function mapTorsoToFilter(torsoY: number): number {
   const normalized = clamp((320 - torsoY) / 240, 0, 1);
   return 400 + normalized * 2200;
+}
+
+function nextBassPoseTracker(
+  tracker: BassPoseTracker,
+  slot: number,
+  timestamp: number,
+): { nextTracker: BassPoseTracker; stableMs: number } {
+  if (tracker.slot === slot && tracker.since !== null) {
+    return {
+      nextTracker: tracker,
+      stableMs: timestamp - tracker.since,
+    };
+  }
+
+  return {
+    nextTracker: {
+      slot,
+      since: timestamp,
+    },
+    stableMs: 0,
+  };
+}
+
+function kindForZone(zone: ZoneId): 'kick' | 'snare' | 'hat' {
+  if (zone === 'left') {
+    return 'kick';
+  }
+  if (zone === 'middle') {
+    return 'snare';
+  }
+  return 'hat';
+}
+
+function resetZoneState(nextState: MappingState, zone: ZoneId): void {
+  nextState.gesture[zone] = createInitialGestureIntentState();
+  nextState.bassPose[zone] = createInitialBassPose();
+  nextState.keysHoldStartedAt[zone] = null;
+}
+
+function statusFromGesture(
+  instrument: LaneInstrument,
+  gesturePhase: GestureIntentPhase,
+  feature: ZoneFeatureSnapshot,
+): LaneStatus {
+  if (!feature.occupied) {
+    return 'no_player';
+  }
+
+  if (instrument === 'keys') {
+    if (gesturePhase === 'active') {
+      return 'sustain';
+    }
+    if (feature.handsRaised && feature.handsOpen) {
+      return 'hold';
+    }
+    return 'get_ready';
+  }
+
+  if (gesturePhase === 'armed') {
+    return 'hold';
+  }
+  if (gesturePhase === 'cooldown') {
+    return 'hit';
+  }
+
+  return 'get_ready';
 }
 
 export function mapFeaturesToEvents({
@@ -87,15 +180,28 @@ export function mapFeaturesToEvents({
   conductor,
   features,
   laneInstruments = {
-    left: 'rhythm',
+    left: 'drums',
     middle: 'bass',
-    right: 'pad',
+    right: 'keys',
   },
 }: MappingParams): MappingResult {
   const nextState: MappingState = {
-    lastRhythmHitAt: { ...state.lastRhythmHitAt },
-    lastBassAt: { ...state.lastBassAt },
-    lastPadAt: { ...state.lastPadAt },
+    gesture: {
+      left: { ...state.gesture.left },
+      middle: { ...state.gesture.middle },
+      right: { ...state.gesture.right },
+    },
+    bassPose: {
+      left: { ...state.bassPose.left },
+      middle: { ...state.bassPose.middle },
+      right: { ...state.bassPose.right },
+    },
+    keysHoldStartedAt: { ...state.keysHoldStartedAt },
+  };
+  const statuses: Record<ZoneId, LaneStatus> = {
+    left: 'no_player',
+    middle: 'no_player',
+    right: 'no_player',
   };
   const events: MusicEvent[] = [];
 
@@ -106,51 +212,107 @@ export function mapFeaturesToEvents({
     const feature = features[zone];
     const role = laneInstruments[zone];
 
-    if (role === 'rhythm') {
-      if (feature.wristVelocity > 0.45 && timestamp - nextState.lastRhythmHitAt[zone] > 180) {
-        const kind = zone === 'left' ? 'kick' : zone === 'middle' ? 'snare' : 'hat';
-        events.push({
-          source: 'player',
-          instrument: 'drums',
-          kind,
-          zone,
-          velocity: clamp(feature.wristVelocity, 0.25, 1),
-        });
-        nextState.lastRhythmHitAt[zone] = timestamp;
+    if (!feature.occupied) {
+      resetZoneState(nextState, zone);
+      statuses[zone] = 'no_player';
+      return;
+    }
+
+    if (role === 'drums') {
+      const intent = updateGestureIntent(role, nextState.gesture[zone], {
+        timestamp,
+        wristVelocity: feature.wristVelocity,
+        wristDeltaY: feature.wristDeltaY,
+      });
+      nextState.gesture[zone] = intent.nextState;
+      statuses[zone] = intent.trigger
+        ? 'hit'
+        : statusFromGesture(role, intent.nextState.phase, feature);
+
+      if (!intent.trigger) {
+        return;
       }
+
+      events.push({
+        source: 'player',
+        instrument: 'drums',
+        kind: kindForZone(zone),
+        zone,
+        velocity: clamp(feature.wristVelocity, 0.25, 1),
+      });
       return;
     }
 
     if (role === 'bass') {
-      if (timestamp - nextState.lastBassAt[zone] > 220 && feature.energy > 0.04) {
-        events.push({
-          source: 'player',
-          instrument: 'bass',
-          zone,
-          note: mapAngleToBassNote(feature.shoulderWristAngle, conductor),
-          velocity: clamp(0.35 + feature.energy, 0.3, 0.85),
-        });
-        nextState.lastBassAt[zone] = timestamp;
+      const bassPose = mapAngleToBassSlot(feature.shoulderWristAngle, conductor);
+      const trackedPose = nextBassPoseTracker(nextState.bassPose[zone], bassPose.slot, timestamp);
+      nextState.bassPose[zone] = trackedPose.nextTracker;
+
+      const pulseVelocity = Math.max(feature.wristVelocity, Math.abs(feature.wristDeltaY) / 30);
+      const intent = updateGestureIntent(role, nextState.gesture[zone], {
+        timestamp,
+        noteSlot: bassPose.slot,
+        noteSlotStableMs: trackedPose.stableMs,
+        pulseVelocity,
+      });
+      nextState.gesture[zone] = intent.nextState;
+      statuses[zone] = intent.trigger
+        ? 'hit'
+        : statusFromGesture(role, intent.nextState.phase, feature);
+
+      if (!intent.trigger) {
+        return;
       }
+
+      events.push({
+        source: 'player',
+        instrument: 'bass',
+        zone,
+        note: bassPose.note,
+        velocity: clamp(0.35 + Math.max(feature.energy, pulseVelocity * 0.35), 0.3, 0.85),
+      });
       return;
     }
 
-    if (timestamp - nextState.lastPadAt[zone] > 500 && feature.energy > 0.03) {
-      events.push({
-        source: 'player',
-        instrument: 'pad',
-        zone,
-        notes: conductor.getChordVoicing(4),
-        velocity: clamp(0.2 + feature.energy, 0.2, 0.6),
-        filterCutoff: mapTorsoToFilter(feature.torsoY),
-      });
-      nextState.lastPadAt[zone] = timestamp;
+    const holdingPosture = feature.handsRaised && feature.handsOpen;
+    if (!holdingPosture) {
+      nextState.keysHoldStartedAt[zone] = null;
+    } else if (nextState.keysHoldStartedAt[zone] === null) {
+      nextState.keysHoldStartedAt[zone] = timestamp;
     }
+
+    const holdStartedAt = nextState.keysHoldStartedAt[zone];
+    const holdMs = holdingPosture && holdStartedAt !== null ? timestamp - holdStartedAt : 0;
+    const intent = updateGestureIntent(role, nextState.gesture[zone], {
+      timestamp,
+      handsRaised: feature.handsRaised,
+      handsOpen: feature.handsOpen,
+      holdMs,
+      torsoY: feature.torsoY,
+    });
+    nextState.gesture[zone] = intent.nextState;
+    statuses[zone] = intent.trigger
+      ? 'sustain'
+      : statusFromGesture(role, intent.nextState.phase, feature);
+
+    if (!intent.trigger) {
+      return;
+    }
+
+    events.push({
+      source: 'player',
+      instrument: 'pad',
+      zone,
+      notes: conductor.getChordVoicing(4),
+      velocity: clamp(0.2 + feature.energy, 0.2, 0.6),
+      filterCutoff: mapTorsoToFilter(feature.torsoY),
+    });
   });
 
   return {
     events,
     nextState,
     globalEnergy,
+    statuses,
   };
 }

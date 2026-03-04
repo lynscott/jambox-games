@@ -4,9 +4,9 @@ import type { LaneState, ZoneId } from '../../types';
 import { TutorialScreen } from './TutorialScreen';
 
 const LANES: Record<ZoneId, LaneState> = {
-  left: { instrument: 'rhythm', activity: 0.4, lastGrade: null, hitCount: 0 },
-  middle: { instrument: 'bass', activity: 0.6, lastGrade: null, hitCount: 0 },
-  right: { instrument: 'pad', activity: 0.2, lastGrade: null, hitCount: 0 },
+  left: { instrument: 'drums', occupied: true, status: 'get_ready', activity: 0.4, lastGrade: null, hitCount: 0, gesturePhase: 'idle' },
+  middle: { instrument: 'bass', occupied: true, status: 'hold', activity: 0.6, lastGrade: null, hitCount: 0, gesturePhase: 'armed' },
+  right: { instrument: 'keys', occupied: true, status: 'sustain', activity: 0.2, lastGrade: null, hitCount: 0, gesturePhase: 'active' },
 };
 
 describe('TutorialScreen', () => {
@@ -24,8 +24,9 @@ describe('TutorialScreen', () => {
     );
 
     expect(screen.getByText(/3 \/ 8 beats/i)).toBeInTheDocument();
-    expect(screen.getByText(/quick wrist strikes/i)).toBeInTheDocument();
-    expect(screen.getByText(/move & shift angle/i)).toBeInTheDocument();
+    expect(screen.getByText(/hit with quick wrist strikes/i)).toBeInTheDocument();
+    expect(screen.getByText(/hold a note pose, then pulse to play/i)).toBeInTheDocument();
+    expect(screen.getByText(/raise both hands and hold the chord/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /start jam now/i }));
     expect(onStartJam).toHaveBeenCalledTimes(1);

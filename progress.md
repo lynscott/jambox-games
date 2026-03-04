@@ -139,3 +139,58 @@ Original prompt: checkout the changes we made to improve the UI below. we implem
   - `src/components/CameraView.tsx`
   - `src/components/OverlayCanvas.tsx`
   - `src/components/jam/TimingCallout.tsx`
+
+## Midnight Soul Gameplay Pass
+- Added gesture-state feedback plumbing so lane cards and diagnostics reflect the mapper's actual intent phases instead of generic play/wait labels.
+- Extended shared types/state with per-lane `gesturePhase` plus diagnostics for `trackTitle` and per-zone gesture state.
+- Updated jam lane cues in `src/components/jam/LaneCard.tsx`:
+  - `WAIT` for inactive arrangement lanes
+  - `READY` when a playable lane is idle
+  - `HOLD` for armed bass poses
+  - `HIT` during strike/cooldown windows
+  - `SUSTAIN` while keys posture is actively held
+- Hardened diagnostics rendering and expanded it to show:
+  - track title
+  - per-zone gesture state
+  - safe numeric formatting for runtime metrics
+- Wired mapper gesture phases from `src/music/mapping.ts` back into store updates in `src/App.tsx`, so UI/diagnostics reflect live posture state every inference pass.
+- Integrated the deterministic `Midnight Soul` backing groove into the live app:
+  - added `syncBackingTrackPlayback()` in `src/music/backing-track.ts`
+  - created/stopped the backing scheduler from `src/App.tsx` during jam
+  - exposed `backingTrackRunning` in `render_game_to_text()` for automation/debug visibility
+- Added/updated tests:
+  - `src/components/jam/LaneCard.test.tsx`
+  - `src/components/Diagnostics.test.tsx`
+  - `src/music/backing-track.test.ts`
+  - `src/music/gesture-intent.test.ts`
+  - `src/components/screens/TutorialScreen.test.tsx`
+- Verification:
+  - `npm run test` passing (31 files / 78 tests)
+  - `npm run build` passing
+  - `npm run lint` still fails only on pre-existing issues in:
+    - `src/components/CameraView.tsx`
+    - `src/components/OverlayCanvas.tsx`
+    - `src/components/jam/TimingCallout.tsx`
+  - Browser smoke:
+    - `npx playwright screenshot --browser chromium --full-page --wait-for-selector "button[aria-label='Jam Hero'], button:has-text('Jam Hero')" http://127.0.0.1:5173/ output/midnight-soul-home.png`
+
+## Integrated Gameplay Branches
+- Merged the `codex/midnight-soul` and `codex/gameplay-stabilization` work into one codepath.
+- Preserved the `Midnight Soul` backing groove, track metadata, and gesture-intent system.
+- Layered in stabilization changes:
+  - lane `occupied` state
+  - lane `status` (`no_player`, `get_ready`, `hold`, `hit`, `sustain`)
+  - skeleton overlay limited to calibration
+  - empty-lane scoring/audio gating
+  - calmer lane-card cues and diagnostics
+- Updated defaults so the app boots Jam Hero with the Midnight Soul BPM (`96`) instead of the older `110` transport default.
+
+## End-Of-Game Audio Scheduling Fix
+- Root cause investigated in integrated codepath:
+  - the app can schedule countdown warning hits, guide-beat hits, backing-track hits, and player hits onto the same monophonic drum/bass synth instances.
+  - Tone rejects repeated source starts at the same start time, which matches the reported runtime error: `Start time must be strictly greater than previous start time`.
+- Added a regression test first in `src/music/instruments.voice-pool.test.ts`.
+- Fixed by introducing round-robin voice pools in `src/music/instruments.ts` for kick, snare, hat, and bass so simultaneous/near-simultaneous hits do not reuse the same underlying voice immediately.
+- Verification:
+  - `npm run test` passing (`34` files / `85` tests)
+  - `npm run build` passing

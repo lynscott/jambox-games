@@ -18,7 +18,12 @@ export type GameSelection = 'jam_hero' | 'vs' | 'on_beat' | 'know_your_lyrics';
 
 export type TimingGrade = 'perfect' | 'good' | 'late' | 'miss';
 
-export type LaneInstrument = 'rhythm' | 'bass' | 'pad';
+export type TrackId = 'midnight-soul';
+
+export type LaneInstrument = 'drums' | 'bass' | 'keys';
+
+export type GestureIntentPhase = 'idle' | 'armed' | 'active' | 'cooldown';
+export type LaneStatus = 'no_player' | 'get_ready' | 'hold' | 'hit' | 'sustain';
 
 export interface LaneTimingFeedback {
   grade: TimingGrade;
@@ -27,9 +32,12 @@ export interface LaneTimingFeedback {
 
 export interface LaneState {
   instrument: LaneInstrument;
+  occupied: boolean;
+  status: LaneStatus;
   activity: number;
   lastGrade: TimingGrade | null;
   hitCount: number;
+  gesturePhase: GestureIntentPhase;
 }
 
 export interface ScoreSnapshot {
@@ -43,9 +51,13 @@ export interface ScoreSnapshot {
 }
 
 export interface ZoneFeatureSnapshot {
+  occupied: boolean;
   wristVelocity: number;
+  wristDeltaY: number;
   torsoY: number;
   shoulderWristAngle: number;
+  handsRaised: boolean;
+  handsOpen: boolean;
   energy: number;
 }
 
@@ -58,8 +70,10 @@ export interface ZoneOccupantSnapshot {
 export interface AppDiagnostics {
   fps: number;
   inferenceMs: number;
+  trackTitle: string;
   currentChord: string;
   personCount: number;
+  gesturePhase: Record<ZoneId, GestureIntentPhase>;
   zoneEnergy: Record<ZoneId, number>;
   movementToAudioMs: number;
 }

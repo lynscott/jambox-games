@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
-import type { LaneInstrument, LaneState, ZoneId } from '../../types';
+import { TRACK_PRESETS } from '../../music/tracks';
+import { useAppStore } from '../../state/store';
+import type { LaneState, ZoneId } from '../../types';
 
 interface TutorialScreenProps {
   beatsCompleted: number;
@@ -10,12 +12,6 @@ interface TutorialScreenProps {
   children?: ReactNode;
 }
 
-const INSTRUMENT_HINT: Record<LaneInstrument, string> = {
-  rhythm: 'Quick wrist strikes',
-  bass: 'Move & shift angle',
-  pad: 'Raise arms, sway',
-};
-
 export function TutorialScreen({
   beatsCompleted,
   beatsTarget,
@@ -24,6 +20,9 @@ export function TutorialScreen({
   onStartJam,
   children,
 }: TutorialScreenProps) {
+  const currentTrackId = useAppStore((state) => state.currentTrackId);
+  const track = TRACK_PRESETS[currentTrackId];
+
   return (
     <section className="phase-screen tutorial-screen" aria-label="Tutorial Screen">
       {children ? <div className="phase-live-preview">{children}</div> : null}
@@ -43,8 +42,8 @@ export function TutorialScreen({
             return (
               <div key={zone} className={`tutorial-lane${confirmed ? ' tutorial-lane--confirmed' : ''}`}>
                 <p className="tutorial-lane__title">{zone.toUpperCase()}</p>
-                <p className="tutorial-lane__instrument">{instrument}</p>
-                <p className="tutorial-lane__hint">{INSTRUMENT_HINT[instrument]}</p>
+                <p className="tutorial-lane__instrument">{track.laneInstruments[zone]}</p>
+                <p className="tutorial-lane__hint">{track.tutorialHints[instrument]}</p>
                 <p className="tutorial-lane__status">{confirmed ? 'Confirmed' : 'Waiting'}</p>
               </div>
             );

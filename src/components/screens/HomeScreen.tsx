@@ -9,7 +9,7 @@ export function HomeScreen({ onSelectGame }: HomeScreenProps) {
   return (
     <section className="phase-screen home-screen" aria-label="Home Screen">
       <div className="home-brand">
-        <div className="home-brand__logo-wrap">
+        <div className="home-brand__logo-frame">
           <img
             className="home-brand__logo"
             src="/jambox-games-logo.png"
@@ -17,7 +17,6 @@ export function HomeScreen({ onSelectGame }: HomeScreenProps) {
           />
         </div>
         <p className="phase-kicker">Arcade Music Collection</p>
-        <h1 className="phase-title home-screen__title">Jam Box Games</h1>
         <p className="phase-copy home-screen__copy">
           Pick a mode, step into the lights, and let the room become the controller.
         </p>
@@ -32,9 +31,39 @@ export function HomeScreen({ onSelectGame }: HomeScreenProps) {
             onClick={() => onSelectGame(game.id)}
             aria-label={game.title}
           >
-            <div className={`home-card__logo home-card__logo--${game.accent}`} aria-hidden="true">
-              <span className="home-card__glyph" />
-            </div>
+            {game.id === 'jam_hero' ? (
+              <img
+                className="home-card__logo-image"
+                src="/jam-hero.png"
+                alt="Jam Hero logo"
+                aria-hidden="true"
+              />
+            ) : game.id === 'vs' ? (
+              <img
+                className="home-card__logo-image"
+                src="/vs-logo.png"
+                alt="Vs. logo"
+                aria-hidden="true"
+              />
+            ) : game.id === 'on_beat' ? (
+              <img
+                className="home-card__logo-image"
+                src="/on-beat-logo.png"
+                alt="On Beat logo"
+                aria-hidden="true"
+              />
+            ) : game.id === 'know_your_lyrics' ? (
+              <img
+                className="home-card__logo-image"
+                src="/know-your-lyrics-logo.png"
+                alt="Know Your Lyrics logo"
+                aria-hidden="true"
+              />
+            ) : (
+              <div className={`home-card__logo home-card__logo--${game.accent}`} aria-hidden="true">
+                <span className="home-card__glyph" />
+              </div>
+            )}
             <div className="home-card__body">
               <div className="home-card__header">
                 <h2 className="home-card__title">{game.title}</h2>

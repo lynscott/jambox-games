@@ -1,3 +1,4 @@
+import { TRACK_PRESETS } from '../../music/tracks';
 import { useAppStore } from '../../state/store';
 import type { LaneInstrument, ZoneId } from '../../types';
 
@@ -12,16 +13,18 @@ const ZONE_LABELS: Record<ZoneId, string> = {
 };
 
 const INSTRUMENT_OPTIONS: Array<{ value: LaneInstrument; label: string }> = [
-  { value: 'rhythm', label: 'Rhythm' },
+  { value: 'drums', label: 'Drums' },
   { value: 'bass', label: 'Bass' },
-  { value: 'pad', label: 'Pad / Chords' },
+  { value: 'keys', label: 'Keys Pad' },
 ];
 
 export function SetupScreen({ onStartSession }: SetupScreenProps) {
+  const currentTrackId = useAppStore((state) => state.currentTrackId);
   const lanes = useAppStore((state) => state.lanes);
   const jamDurationSec = useAppStore((state) => state.jamDurationSec);
   const setJamDuration = useAppStore((state) => state.setJamDuration);
   const setLaneInstrument = useAppStore((state) => state.setLaneInstrument);
+  const track = TRACK_PRESETS[currentTrackId];
 
   return (
     <section className="phase-screen setup-screen" aria-label="Setup Screen">
@@ -31,6 +34,12 @@ export function SetupScreen({ onStartSession }: SetupScreenProps) {
         <p className="phase-copy">
           Pick instruments for each lane and lock the run format. Selections stay fixed once session starts.
         </p>
+
+        <div className="setup-track">
+          <p className="setup-track__label">Featured Track</p>
+          <h2 className="setup-track__title">{track.title}</h2>
+          <p className="setup-track__copy">{track.description}</p>
+        </div>
 
         <div className="setup-lane-grid">
           {(['left', 'middle', 'right'] as ZoneId[]).map((zone) => (

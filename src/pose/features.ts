@@ -10,6 +10,7 @@ interface ZoneFeatureInternal {
   prevPoints: Record<string, Point2D> | null;
   prevTimestamp: number | null;
   energyWindow: number[];
+  lastSeenAt: number | null;
 }
 
 export interface FeatureState {
@@ -21,6 +22,7 @@ interface ComputeFeatureParams {
   timestamp: number;
   state: FeatureState;
   windowSize?: number;
+  occupancyGraceMs?: number;
 }
 
 interface ComputeFeatureResult {
@@ -33,6 +35,7 @@ function createZoneInternal(): ZoneFeatureInternal {
     prevPoints: null,
     prevTimestamp: null,
     energyWindow: [],
+    lastSeenAt: null,
   };
 }
 
@@ -68,12 +71,40 @@ export function computeZoneFeatures({
   timestamp,
   state,
   windowSize = 12,
+  occupancyGraceMs = 250,
 }: ComputeFeatureParams): ComputeFeatureResult {
   const zones: ZoneId[] = ['left', 'middle', 'right'];
   const features: Record<ZoneId, ZoneFeatureSnapshot> = {
-    left: { wristVelocity: 0, torsoY: 0, shoulderWristAngle: 0, energy: 0 },
-    middle: { wristVelocity: 0, torsoY: 0, shoulderWristAngle: 0, energy: 0 },
-    right: { wristVelocity: 0, torsoY: 0, shoulderWristAngle: 0, energy: 0 },
+    left: {
+      occupied: false,
+      wristVelocity: 0,
+      wristDeltaY: 0,
+      torsoY: 0,
+      shoulderWristAngle: 0,
+      handsRaised: false,
+      handsOpen: false,
+      energy: 0,
+    },
+    middle: {
+      occupied: false,
+      wristVelocity: 0,
+      wristDeltaY: 0,
+      torsoY: 0,
+      shoulderWristAngle: 0,
+      handsRaised: false,
+      handsOpen: false,
+      energy: 0,
+    },
+    right: {
+      occupied: false,
+      wristVelocity: 0,
+      wristDeltaY: 0,
+      torsoY: 0,
+      shoulderWristAngle: 0,
+      handsRaised: false,
+      handsOpen: false,
+      energy: 0,
+    },
   };
 
   const nextState: FeatureState = {
@@ -90,15 +121,22 @@ export function computeZoneFeatures({
 
     if (!pose) {
       const decayedEnergy = previous.energyWindow.map((value) => value * 0.85);
+      const occupied =
+        previous.lastSeenAt !== null && timestamp - previous.lastSeenAt <= occupancyGraceMs;
       nextState.byZone[zone] = {
         prevPoints: previous.prevPoints,
         prevTimestamp: previous.prevTimestamp,
         energyWindow: decayedEnergy,
+        lastSeenAt: previous.lastSeenAt,
       };
       features[zone] = {
+        occupied,
         wristVelocity: 0,
+        wristDeltaY: 0,
         torsoY: 0,
         shoulderWristAngle: 0,
+        handsRaised: false,
+        handsOpen: false,
         energy: mean(decayedEnergy),
       };
       return;
@@ -129,6 +167,14 @@ export function computeZoneFeatures({
       wristMovements.push(distance(rightWrist, prevRightWrist));
     }
     const wristVelocity = wristMovements.length > 0 ? mean(wristMovements) / dt : 0;
+    const wristDeltaYValues: number[] = [];
+    if (leftWrist && prevLeftWrist) {
+      wristDeltaYValues.push(leftWrist.y - prevLeftWrist.y);
+    }
+    if (rightWrist && prevRightWrist) {
+      wristDeltaYValues.push(rightWrist.y - prevRightWrist.y);
+    }
+    const wristDeltaY = wristDeltaYValues.length > 0 ? mean(wristDeltaYValues) : 0;
 
     const torsoY =
       leftHip && rightHip
@@ -147,6 +193,14 @@ export function computeZoneFeatures({
       angleTarget.y - shoulderAnchor.y,
       angleTarget.x - shoulderAnchor.x,
     );
+    const handsRaised =
+      Boolean(leftWrist && rightWrist && leftShoulder && rightShoulder) &&
+      leftWrist!.y < leftShoulder!.y &&
+      rightWrist!.y < rightShoulder!.y;
+    const shoulderWidth =
+      leftShoulder && rightShoulder ? distance(leftShoulder, rightShoulder) : 0;
+    const wristSpan = leftWrist && rightWrist ? distance(leftWrist, rightWrist) : 0;
+    const handsOpen = shoulderWidth > 0 && wristSpan > shoulderWidth * 1.15;
 
     const movementMagnitudes: number[] = [];
     if (previous.prevPoints) {
@@ -162,9 +216,13 @@ export function computeZoneFeatures({
     const energy = mean(energyWindow);
 
     features[zone] = {
+      occupied: true,
       wristVelocity,
+      wristDeltaY,
       torsoY,
       shoulderWristAngle,
+      handsRaised,
+      handsOpen,
       energy,
     };
 
@@ -172,6 +230,7 @@ export function computeZoneFeatures({
       prevPoints: currentPoints,
       prevTimestamp: timestamp,
       energyWindow,
+      lastSeenAt: timestamp,
     };
   });
 

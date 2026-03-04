@@ -17,10 +17,14 @@ import {
   createInitialScoringState,
   type ScoringState,
 } from './game/scoring';
+import { shouldProcessPlayerFeedback } from './game/scoring-gates';
 import { computeCueWindowActive, countdownSecond, shouldTriggerCountdownTick } from './game/cues';
+import { shouldShowSkeletonOverlay } from './game/visuals';
+import { createBackingTrackScheduler, syncBackingTrackPlayback, type BackingTrackScheduler } from './music/backing-track';
 import { createConductor } from './music/conductor';
 import { createInstruments, type GarageBandInstruments } from './music/instruments';
 import { createInitialMappingState, mapFeaturesToEvents } from './music/mapping';
+import { TRACK_PRESETS } from './music/tracks';
 import {
   computeGridOffsetMs,
   createToneTransportController,
@@ -117,6 +121,9 @@ function App() {
   const resetTutorialProgress = useAppStore((state) => state.resetTutorialProgress);
   const highScore = useAppStore((state) => state.highScore);
   const commitHighScore = useAppStore((state) => state.commitHighScore);
+  const currentTrackId = useAppStore((state) => state.currentTrackId);
+
+  const currentTrack = TRACK_PRESETS[currentTrackId];
 
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const [poses, setPoses] = useState<PoseSample[]>([]);
@@ -139,6 +146,7 @@ function App() {
   const conductorRef = useRef(createConductor());
   const transportRef = useRef<TransportController | null>(null);
   const instrumentsRef = useRef<GarageBandInstruments | null>(null);
+  const backingTrackRef = useRef<BackingTrackScheduler | null>(null);
   const scoringStateRef = useRef<ScoringState>(createInitialScoringState());
   const previousCountdownRemainingMsRef = useRef<number | null>(null);
   const jamStartTransportSecondsRef = useRef(0);
@@ -308,6 +316,7 @@ function App() {
           timeRemainingMs: useAppStore.getState().jamTimeRemainingMs,
           score: useAppStore.getState().score,
           arrangement: loopArrangement,
+          backingTrackRunning: backingTrackRef.current?.isRunning() ?? false,
         },
         lanes: {
           left: useAppStore.getState().lanes.left,
@@ -406,6 +415,7 @@ function App() {
       guideBeatCounterRef.current = 0;
       jamStartTransportSecondsRef.current = 0;
       transportRef.current?.stop();
+      backingTrackRef.current?.stop();
       mappingStateRef.current = createInitialMappingState();
       previousCountdownRemainingMsRef.current = null;
       conductorRef.current = createConductor();
@@ -416,7 +426,19 @@ function App() {
           bpm,
         }),
       );
-      setDiagnostics({ currentChord: 'Am', movementToAudioMs: 0 });
+      setDiagnostics({
+        trackTitle: currentTrack.title,
+        currentChord: 'Am',
+        movementToAudioMs: 0,
+        gesturePhase: {
+          left: 'idle',
+          middle: 'idle',
+          right: 'idle',
+        },
+      });
+      updateLane('left', { occupied: false, status: 'no_player', gesturePhase: 'idle' });
+      updateLane('middle', { occupied: false, status: 'no_player', gesturePhase: 'idle' });
+      updateLane('right', { occupied: false, status: 'no_player', gesturePhase: 'idle' });
       return;
     }
 
@@ -424,7 +446,10 @@ function App() {
       transportRef.current.setBpm(bpm);
     }
 
-    setDiagnostics({ currentChord: conductorRef.current.currentChord() });
+    setDiagnostics({
+      trackTitle: currentTrack.title,
+      currentChord: conductorRef.current.currentChord(),
+    });
     const msPerChord = (60 / bpm) * 4 * 1000;
     const intervalId = window.setInterval(() => {
       const nextChord = conductorRef.current.advanceChord();
@@ -432,7 +457,34 @@ function App() {
     }, msPerChord);
 
     return () => window.clearInterval(intervalId);
-  }, [bpm, isSessionRunning, setDiagnostics]);
+  }, [bpm, currentTrack.title, isSessionRunning, setDiagnostics]);
+
+  // Midnight Soul backing groove: provides the continuous pocket so player sounds sit on top of a stable bed.
+  useEffect(() => {
+    const transport = transportRef.current;
+    const instruments = instrumentsRef.current;
+    if (!transport || !instruments) {
+      return;
+    }
+
+    if (!backingTrackRef.current) {
+      backingTrackRef.current = createBackingTrackScheduler({
+        track: currentTrack,
+        transport,
+        instruments,
+      });
+    }
+
+    syncBackingTrackPlayback({
+      scheduler: backingTrackRef.current,
+      shouldRun: isSessionRunning && gamePhase === 'jam',
+      startAtSeconds: transport.now() + 0.05,
+    });
+
+    return () => {
+      backingTrackRef.current?.stop();
+    };
+  }, [currentTrack, gamePhase, isSessionRunning]);
 
   // Jam timer countdown
   useEffect(() => {
@@ -547,6 +599,11 @@ function App() {
 
   // Beat phase animation
   useEffect(() => {
+    if (!isSessionRunning) {
+      setBeatPhase(0);
+      return;
+    }
+
     let rafId = 0;
 
     const tick = () => {
@@ -573,7 +630,7 @@ function App() {
 
     rafId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(rafId);
-  }, [bpm, gamePhase]);
+  }, [bpm, gamePhase, isSessionRunning]);
 
   // Main inference + event loop
   useEffect(() => {
@@ -581,8 +638,20 @@ function App() {
       setPoses([]);
       zoningStateRef.current = createInitialZoningState();
       featureStateRef.current = createInitialFeatureState();
-      setDiagnostics({ personCount: 0, inferenceMs: 0, fps: 0 });
+      setDiagnostics({
+        personCount: 0,
+        inferenceMs: 0,
+        fps: 0,
+        gesturePhase: {
+          left: 'idle',
+          middle: 'idle',
+          right: 'idle',
+        },
+      });
       setZoneOccupants({ left: null, middle: null, right: null });
+      updateLane('left', { occupied: false, status: 'no_player', gesturePhase: 'idle' });
+      updateLane('middle', { occupied: false, status: 'no_player', gesturePhase: 'idle' });
+      updateLane('right', { occupied: false, status: 'no_player', gesturePhase: 'idle' });
       return;
     }
 
@@ -716,13 +785,18 @@ function App() {
 
               const zones: ZoneId[] = ['left', 'middle', 'right'];
               zones.forEach((zone) => {
-                const energy = featureResult.features[zone].energy;
+                const feature = featureResult.features[zone];
+                const energy = feature.energy;
                 const store = useAppStore.getState();
                 const prev = store.lanes[zone].activity;
                 const smoothed = prev + ACTIVITY_SMOOTHING * (energy - prev);
-                updateLane(zone, { activity: Math.min(1, smoothed) });
+                updateLane(zone, {
+                  activity: Math.min(1, smoothed),
+                  occupied: feature.occupied,
+                  status: feature.occupied ? store.lanes[zone].status : 'no_player',
+                });
 
-                if (gamePhase === 'tutorial' && energy > TUTORIAL_ENERGY_CONFIRM_THRESHOLD) {
+                if (gamePhase === 'tutorial' && feature.occupied && energy > TUTORIAL_ENERGY_CONFIRM_THRESHOLD) {
                   setTutorialLaneConfirmed(zone, true);
                 }
               });
@@ -746,6 +820,20 @@ function App() {
                 });
 
                 mappingStateRef.current = mappingResult.nextState;
+                setDiagnostics({
+                  gesturePhase: {
+                    left: mappingResult.nextState.gesture.left.phase,
+                    middle: mappingResult.nextState.gesture.middle.phase,
+                    right: mappingResult.nextState.gesture.right.phase,
+                  },
+                });
+                zones.forEach((zone) => {
+                  updateLane(zone, {
+                    occupied: featureResult.features[zone].occupied,
+                    status: mappingResult.statuses[zone],
+                    gesturePhase: mappingResult.nextState.gesture[zone].phase,
+                  });
+                });
                 const transportNow = transport.now();
                 const activeZones =
                   gamePhase === 'jam'
@@ -799,6 +887,15 @@ function App() {
 
                   const offsetMs = computeGridOffsetMs(transportNow, bpm, quantization);
                   const zone = event.zone;
+                  const currentLane = useAppStore.getState().lanes[zone];
+                  if (
+                    !shouldProcessPlayerFeedback({
+                      occupied: currentLane.occupied,
+                      status: currentLane.status,
+                    })
+                  ) {
+                    return;
+                  }
                   const result = applyEvent(scoringStateRef.current, {
                     timestamp: now,
                     zone,
@@ -806,7 +903,6 @@ function App() {
                   });
 
                   if (!result.jitterRejected) {
-                    const currentInstrument = useAppStore.getState().lanes[zone].instrument;
                     updateScore({
                       total: scoringStateRef.current.timingPoints,
                       timing: scoringStateRef.current.timingPoints,
@@ -817,7 +913,7 @@ function App() {
                     updateLane(zone, {
                       lastGrade: result.grade,
                       hitCount: scoringStateRef.current.laneHits[zone],
-                      instrument: currentInstrument,
+                      instrument: currentLane.instrument,
                     });
                     setHitFlash(zone, now);
                   }
@@ -867,7 +963,7 @@ function App() {
 
   const drawOverlay = useMemo(
     () => (ctx: CanvasRenderingContext2D) => {
-      if (!showSkeleton) {
+      if (!shouldShowSkeletonOverlay(gamePhase, showSkeleton)) {
         return;
       }
 
@@ -910,7 +1006,7 @@ function App() {
 
       ctx.restore();
     },
-    [poses, showSkeleton],
+    [gamePhase, poses, showSkeleton],
   );
 
   const handleVideoElementChange = useCallback((video: HTMLVideoElement | null) => {

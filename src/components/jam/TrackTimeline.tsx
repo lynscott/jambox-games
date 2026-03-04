@@ -6,9 +6,9 @@ const ZONES: ZoneId[] = ['left', 'middle', 'right'];
 const BAR_COUNT = 8;
 
 const INSTRUMENT_LABEL: Record<LaneInstrument, string> = {
-  rhythm: 'Drums',
+  drums: 'Drums',
   bass: 'Bass',
-  pad: 'Pad',
+  keys: 'Keys',
 };
 
 interface TrackTimelineProps {

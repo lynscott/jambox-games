@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Controls } from './Controls';
+import { MIDNIGHT_SOUL_TRACK } from '../music/tracks';
 import { createInitialState, useAppStore } from '../state/store';
 
 describe('Controls', () => {
@@ -11,7 +12,7 @@ describe('Controls', () => {
   it('renders defaults and updates store values', () => {
     render(<Controls onToggleSession={vi.fn()} />);
 
-    expect(screen.getByLabelText('BPM')).toHaveValue(110);
+    expect(screen.getByLabelText('BPM')).toHaveValue(MIDNIGHT_SOUL_TRACK.bpm);
 
     fireEvent.change(screen.getByLabelText('BPM'), { target: { value: '132' } });
     fireEvent.change(screen.getByLabelText('Quantization'), { target: { value: '16n' } });
