@@ -1,7 +1,9 @@
 import { startTransition, useEffect, useState } from 'react';
 import type { LyricsTrack } from '../../game/lyrics';
 import {
+  buildLyricsTrackFromSeed,
   buildLyricsTrackFromYoutube,
+  CURATED_LYRICS_SEEDS,
   hasYoutubeApiKey,
   searchYoutubeInstrumentals,
   type YoutubeInstrumentalOption,
@@ -52,7 +54,7 @@ export function LyricsSetupScreen({
 
   const runSearch = async () => {
     if (!hasYoutubeApiKey()) {
-      setError('Missing VITE_YOUTUBE_API_KEY. Add it to load YouTube songs.');
+      setError('Missing VITE_YOUTUBE_API_KEY or VITE_YOUTUBE_KEY. Add one to load YouTube songs.');
       return;
     }
 
@@ -84,6 +86,31 @@ export function LyricsSetupScreen({
         cause instanceof Error
           ? `Could not prepare ${option.title}: ${cause.message}`
           : `Could not prepare ${option.title}.`,
+      );
+    } finally {
+      setIsPreparing(false);
+      setPreparingId('');
+    }
+  };
+
+  const handleSelectCuratedSong = async (seedId: string) => {
+    const seed = CURATED_LYRICS_SEEDS.find((item) => item.id === seedId);
+    if (!seed) {
+      return;
+    }
+
+    setIsPreparing(true);
+    setPreparingId(seed.id);
+    setError('');
+
+    try {
+      const track = await buildLyricsTrackFromSeed(seed);
+      onSelectTrack(track);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? `Could not prepare ${seed.title}: ${cause.message}`
+          : `Could not prepare ${seed.title}.`,
       );
     } finally {
       setIsPreparing(false);
@@ -145,10 +172,38 @@ export function LyricsSetupScreen({
         ) : null}
 
         <div className="vs-history">
+          <h2>Featured Songs</h2>
+          <ul>
+            {CURATED_LYRICS_SEEDS.map((seed) => (
+              <li key={seed.id}>
+                <div className="phone-track-row">
+                  <div>
+                    <strong>{seed.title}</strong>
+                    <p>{seed.artist}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="phase-action"
+                    onClick={() => void handleSelectCuratedSong(seed.id)}
+                    disabled={isPreparing}
+                  >
+                    {preparingId === seed.id ? 'Preparing...' : 'Use Featured'}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="vs-history">
           <h2>Top Instrumentals</h2>
           <ul>
             {options.length === 0 ? (
-              <li>{hasYoutubeApiKey() ? 'No YouTube songs loaded yet.' : 'Set VITE_YOUTUBE_API_KEY to load YouTube results.'}</li>
+              <li>
+                {hasYoutubeApiKey()
+                  ? 'No YouTube songs loaded yet.'
+                  : 'Set VITE_YOUTUBE_API_KEY or VITE_YOUTUBE_KEY to load YouTube results.'}
+              </li>
             ) : (
               options.map((option) => (
                 <li key={option.id}>

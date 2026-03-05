@@ -240,7 +240,7 @@ function AppContent() {
     null,
   ]);
   const [vsRoundTracks, setVsRoundTracks] = useState<Record<number, SpotifyTrackSummary | null>>({});
-  const [onBeatDifficulty, setOnBeatDifficulty] = useState<OnBeatDifficulty>('level1');
+  const [onBeatDifficulty] = useState<OnBeatDifficulty>('level1');
   const [onBeatResult, setOnBeatResult] = useState<OnBeatResultSummary | null>(null);
   const [onBeatSessionKey, setOnBeatSessionKey] = useState(0);
   const [lyricsTrack, setLyricsTrack] = useState<LyricsTrack | null>(LYRICS_TRACKS[0] || null);
@@ -1253,12 +1253,14 @@ function AppContent() {
     const lobbyCode = params.get('lobby') || '';
     const player = Number(params.get('player'));
     const phoneLikeDevice = isPhoneLikeDevice();
+    const routeGame = parseGameSelection(params.get('game'));
 
     return {
       isPhoneMode:
         phoneLikeDevice && mode === 'phone' && Boolean(lobbyCode) && (player === 1 || player === 2),
       lobbyCode,
       playerSlot: player === 1 || player === 2 ? (player as 1 | 2) : null,
+      expectedGame: routeGame,
     };
   }, [phoneQuery]);
 
@@ -1384,6 +1386,7 @@ function AppContent() {
         <PhonePlayerScreen
           lobbyCode={phoneParams.lobbyCode}
           playerSlot={phoneParams.playerSlot}
+          expectedGame={phoneParams.expectedGame}
         />
       );
     }
@@ -1466,7 +1469,6 @@ function AppContent() {
         return (
           <OnBeatSetupScreen
             difficulty={onBeatDifficulty}
-            onDifficultyChange={setOnBeatDifficulty}
             onStart={handleStartOnBeat}
             onBackToMenu={handleBackToMenu}
           />
@@ -1494,7 +1496,6 @@ function AppContent() {
         ) : (
           <OnBeatSetupScreen
             difficulty={onBeatDifficulty}
-            onDifficultyChange={setOnBeatDifficulty}
             onStart={handleStartOnBeat}
             onBackToMenu={handleBackToMenu}
           />

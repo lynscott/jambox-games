@@ -37,6 +37,7 @@ export const ON_BEAT_FIXED_BPM = 91.5;
 export const ON_BEAT_BREAK_START_MS = 2_000;
 export const ON_BEAT_FIRST_ROUND_START_MS = 2_800;
 export const ON_BEAT_ROUNDS_PER_DIFFICULTY = 4;
+export const ON_BEAT_ACTIVE_ROUND_COUNT = 3;
 
 const CAT: OnBeatPrompt = { emoji: '🐱', word: 'Cat', category: 'animal' };
 const HAT: OnBeatPrompt = { emoji: '🎩', word: 'Hat', category: 'object' };
@@ -44,43 +45,37 @@ const BAT: OnBeatPrompt = { emoji: '🦇', word: 'Bat', category: 'animal' };
 const STAR: OnBeatPrompt = { emoji: '⭐', word: 'Star', category: 'shape' };
 const CAR: OnBeatPrompt = { emoji: '🚗', word: 'Car', category: 'object' };
 const JAR: OnBeatPrompt = { emoji: '🫙', word: 'Jar', category: 'object' };
-const BEE: OnBeatPrompt = { emoji: '🐝', word: 'Bee', category: 'animal' };
-const TREE: OnBeatPrompt = { emoji: '🌳', word: 'Tree', category: 'object' };
-const KEY: OnBeatPrompt = { emoji: '🔑', word: 'Key', category: 'object' };
-const CLOCK: OnBeatPrompt = { emoji: '🕒', word: 'Clock', category: 'object' };
-const ROCK: OnBeatPrompt = { emoji: '🪨', word: 'Rock', category: 'object' };
-const SOCK: OnBeatPrompt = { emoji: '🧦', word: 'Sock', category: 'object' };
+const DOG: OnBeatPrompt = { emoji: '🐶', word: 'Dog', category: 'animal' };
+const FROG: OnBeatPrompt = { emoji: '🐸', word: 'Frog', category: 'animal' };
+const LOG: OnBeatPrompt = { emoji: '🪵', word: 'Log', category: 'object' };
 const MOON: OnBeatPrompt = { emoji: '🌙', word: 'Moon', category: 'object' };
 const SPOON: OnBeatPrompt = { emoji: '🥄', word: 'Spoon', category: 'object' };
 const BALLOON: OnBeatPrompt = { emoji: '🎈', word: 'Balloon', category: 'object' };
-const PHONE: OnBeatPrompt = { emoji: '📱', word: 'Phone', category: 'object' };
-const CONE: OnBeatPrompt = { emoji: '🍦', word: 'Cone', category: 'food' };
-const BONE: OnBeatPrompt = { emoji: '🦴', word: 'Bone', category: 'object' };
-const TRAIN: OnBeatPrompt = { emoji: '🚂', word: 'Train', category: 'object' };
-const CHAIN: OnBeatPrompt = { emoji: '⛓️', word: 'Chain', category: 'object' };
-const RAIN: OnBeatPrompt = { emoji: '🌧️', word: 'Rain', category: 'object' };
 const BOAT: OnBeatPrompt = { emoji: '⛵', word: 'Boat', category: 'object' };
 const GOAT: OnBeatPrompt = { emoji: '🐐', word: 'Goat', category: 'animal' };
 const COAT: OnBeatPrompt = { emoji: '🧥', word: 'Coat', category: 'object' };
+const SUN: OnBeatPrompt = { emoji: '☀️', word: 'Sun', category: 'object' };
+const BUN: OnBeatPrompt = { emoji: '🍔', word: 'Bun', category: 'food' };
+const DRUM: OnBeatPrompt = { emoji: '🥁', word: 'Drum', category: 'object' };
 
 const LEVEL_ONE_ROUNDS: OnBeatPrompt[][] = [
   [CAT, HAT, BAT, CAT, STAR, CAR, JAR, STAR],
-  [CAT, HAT, BAT, HAT, STAR, CAR, JAR, CAR],
-  [CAT, BAT, HAT, CAT, STAR, JAR, CAR, JAR],
+  [DOG, FROG, LOG, DOG, BOAT, GOAT, COAT, BOAT],
+  [MOON, SPOON, BALLOON, MOON, SUN, BUN, DRUM, SUN],
   [CAT, HAT, BAT, CAT, STAR, CAR, JAR, STAR],
 ];
 
 const LEVEL_TWO_ROUNDS: OnBeatPrompt[][] = [
-  [BEE, TREE, KEY, BEE, CLOCK, ROCK, SOCK, CLOCK],
-  [BEE, KEY, TREE, BEE, CLOCK, SOCK, ROCK, CLOCK],
-  [MOON, SPOON, BALLOON, MOON, PHONE, CONE, BONE, PHONE],
-  [MOON, BALLOON, SPOON, MOON, PHONE, BONE, CONE, PHONE],
+  [DOG, FROG, LOG, DOG, BOAT, GOAT, COAT, BOAT],
+  [SUN, BUN, DRUM, SUN, STAR, CAR, JAR, STAR],
+  [MOON, SPOON, BALLOON, MOON, CAT, HAT, BAT, CAT],
+  [BOAT, GOAT, COAT, BOAT, DOG, FROG, LOG, DOG],
 ];
 
 const LEVEL_THREE_ROUNDS: OnBeatPrompt[][] = [
-  [MOON, SPOON, BALLOON, MOON, TRAIN, CHAIN, RAIN, TRAIN],
-  [PHONE, CONE, BONE, PHONE, CLOCK, ROCK, SOCK, CLOCK],
-  [BEE, TREE, KEY, BEE, CAT, HAT, BAT, CAT],
+  [MOON, SPOON, BALLOON, MOON, BOAT, GOAT, COAT, BOAT],
+  [CAT, HAT, BAT, CAT, DOG, FROG, LOG, DOG],
+  [SUN, BUN, DRUM, SUN, STAR, CAR, JAR, STAR],
   [STAR, CAR, JAR, STAR, BOAT, GOAT, COAT, BOAT],
 ];
 
