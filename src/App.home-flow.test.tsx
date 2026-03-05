@@ -102,4 +102,12 @@ describe('App home flow', () => {
     expect(screen.getByRole('heading', { level: 1, name: /lobby \+ phone pairing/i })).toBeInTheDocument();
     expect(screen.queryByLabelText(/phone player screen/i)).not.toBeInTheDocument();
   });
+
+  it('renders jam hero inside a centered live stage frame', () => {
+    window.history.replaceState({}, '', '/?phase=jam&game=jam_hero');
+
+    render(<App />);
+
+    expect(document.querySelector('.jam-hero-live-shell__stage-frame')).not.toBeNull();
+  });
 });

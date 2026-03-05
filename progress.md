@@ -227,3 +227,19 @@ Original prompt: checkout the changes we made to improve the UI below. we implem
   - `npm test -- src/components/screens/JamScreen.test.tsx src/App.home-flow.test.tsx`
   - `npm run build`
 - Follow-up: live browser confirmation on the laptop is still recommended because local CI cannot validate the physical webcam stream.
+
+## Centered Stage UI Pass
+- User requested Jam Hero live camera UI feel less rough/off-center and explicitly chose a centered stage treatment.
+- Added a dedicated `.jam-hero-live-shell__stage-frame` around the persistent live camera stage in `src/App.tsx`.
+- Updated `src/App.css` so the live feed now sits inside a centered 16:9 framed stage with:
+  - constrained max width
+  - balanced top/bottom spacing
+  - rounded panel chrome and glow
+  - centered camera crop (`object-position: center 42%`)
+  - feedback overlays aligned to the same framed surface
+- Added TDD coverage first in `src/App.home-flow.test.tsx` for the stage-frame markup.
+- Verification:
+  - RED: `npm test -- src/App.home-flow.test.tsx` failed before frame existed
+  - GREEN: `npm test -- src/App.home-flow.test.tsx` passed after implementation (`8/8`)
+  - `npm run build` passed
+- Browser note: a direct `?phase=jam&game=jam_hero` deep-link still falls back to home without a live session, so final visual confirmation of the centered stage should be done by entering Jam Hero through the normal flow.

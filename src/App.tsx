@@ -1567,13 +1567,15 @@ function AppContent() {
             className={`jam-hero-live-shell jam-hero-live-shell--${gamePhase === 'jam' ? 'jam' : 'preview'}`}
           >
             <div className="jam-hero-live-shell__stage">
-              {renderLiveStage()}
-            </div>
-            <div className="jam-hero-live-shell__feedback">
-              <StageLaneOverlay
-                activeZones={gamePhase === 'jam' ? loopArrangement.activeZones : ALL_ACTIVE_ZONES}
-              />
-              {gamePhase === 'jam' ? <TimingCallout /> : null}
+              <div className="jam-hero-live-shell__stage-frame">
+                {renderLiveStage()}
+                <div className="jam-hero-live-shell__feedback">
+                  <StageLaneOverlay
+                    activeZones={gamePhase === 'jam' ? loopArrangement.activeZones : ALL_ACTIVE_ZONES}
+                  />
+                  {gamePhase === 'jam' ? <TimingCallout /> : null}
+                </div>
+              </div>
             </div>
             <div className="jam-hero-live-shell__overlay">{renderJamHeroLiveOverlay()}</div>
           </div>
