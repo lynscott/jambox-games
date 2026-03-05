@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CameraView } from './components/CameraView';
 import { OverlayCanvas } from './components/OverlayCanvas';
+import { StageLaneOverlay } from './components/jam/StageLaneOverlay';
+import { TimingCallout } from './components/jam/TimingCallout';
 import { JamScreen } from './components/screens/JamScreen';
 import { CalibrationScreen } from './components/screens/CalibrationScreen';
 import { ComingSoonScreen } from './components/screens/ComingSoonScreen';
@@ -107,11 +109,37 @@ const ROUTABLE_PHASES = new Set([
   'vs_placeholder',
 ]);
 
+const LIVE_CAMERA_PHASES = new Set(['permissions', 'calibration', 'tutorial', 'jam']);
+
 function parseGameSelection(value: string | null): GameSelection | null {
   if (value === 'jam_hero' || value === 'vs' || value === 'on_beat' || value === 'know_your_lyrics') {
     return value;
   }
   return null;
+}
+
+function shouldRetainVideoElementOnHandoff(
+  video: HTMLVideoElement | null,
+  isSessionRunning: boolean,
+  gamePhase: string,
+) {
+  return video === null && isSessionRunning && LIVE_CAMERA_PHASES.has(gamePhase);
+}
+
+function isPhoneLikeDevice() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  if (/android|iphone|ipad|ipod|mobile/.test(userAgent)) {
+    return true;
+  }
+
+  const isCoarsePointer =
+    typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+
+  return isCoarsePointer && window.innerWidth <= 900;
 }
 
 function zoneForX(centerX: number, width: number): ZoneId {
@@ -1201,8 +1229,17 @@ function AppContent() {
   );
 
   const handleVideoElementChange = useCallback((video: HTMLVideoElement | null) => {
+    if (shouldRetainVideoElementOnHandoff(video, isSessionRunning, gamePhase)) {
+      return;
+    }
     setVideoElement(video);
-  }, []);
+  }, [gamePhase, isSessionRunning]);
+
+  useEffect(() => {
+    if (!isSessionRunning) {
+      setVideoElement(null);
+    }
+  }, [isSessionRunning]);
 
   const countdownUrgentSecond =
     gamePhase === 'jam' && jamTimeRemainingMs > 0 && jamTimeRemainingMs <= 10_000
@@ -1215,9 +1252,11 @@ function AppContent() {
     const mode = params.get('mode');
     const lobbyCode = params.get('lobby') || '';
     const player = Number(params.get('player'));
+    const phoneLikeDevice = isPhoneLikeDevice();
 
     return {
-      isPhoneMode: mode === 'phone' && Boolean(lobbyCode) && (player === 1 || player === 2),
+      isPhoneMode:
+        phoneLikeDevice && mode === 'phone' && Boolean(lobbyCode) && (player === 1 || player === 2),
       lobbyCode,
       playerSlot: player === 1 || player === 2 ? (player as 1 | 2) : null,
     };
@@ -1274,6 +1313,70 @@ function AppContent() {
       )}
     </CameraView>
   );
+
+  const renderJamHeroLiveOverlay = () => {
+    switch (gamePhase) {
+      case 'permissions':
+        return (
+          <PermissionsScreen
+            cameraReady={cameraReady}
+            audioReady={audioReady}
+            isBusy={isPermissionBusy}
+            onRequestPermissions={() => void handleRequestPermissions()}
+          />
+        );
+
+      case 'calibration':
+        return (
+          <CalibrationScreen
+            locks={calibrationLocks}
+            isCalibrating={isCalibrating}
+            onRecalibrate={requestCalibration}
+            onContinue={() => {
+              resetTutorialProgress();
+              setGamePhase('tutorial');
+            }}
+            onSkip={() => {
+              resetTutorialProgress();
+              setGamePhase('tutorial');
+            }}
+          />
+        );
+
+      case 'tutorial':
+        return (
+          <TutorialScreen
+            beatsCompleted={tutorialBeatsCompleted}
+            beatsTarget={tutorialBeatsTarget}
+            laneConfirmed={tutorialLaneConfirmed}
+            lanes={lanes}
+            onStartJam={startJam}
+          />
+        );
+
+      case 'jam':
+        return (
+          <JamScreen
+            onToggleSession={handleToggleSession}
+            arrangement={loopArrangement}
+            sectionCallout={loopArrangement.callout}
+            nextSectionCallout={
+              loopArrangement.nextSection
+                ? loopArrangement.nextSection === 'solo' && loopArrangement.nextFocusZone
+                  ? `Next SOLO ${loopArrangement.nextFocusZone.toUpperCase()}`
+                  : `Next ${loopArrangement.nextSection}`
+                : null
+            }
+            countdownSecond={countdownUrgentSecond}
+          >
+            <></>
+          </JamScreen>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   const renderPhase = () => {
     if (phoneParams.isPhoneMode && phoneParams.playerSlot) {
@@ -1455,66 +1558,24 @@ function AppContent() {
         );
 
       case 'permissions':
-        return (
-          <PermissionsScreen
-            cameraReady={cameraReady}
-            audioReady={audioReady}
-            isBusy={isPermissionBusy}
-            onRequestPermissions={() => void handleRequestPermissions()}
-          >
-            {renderLiveStage()}
-          </PermissionsScreen>
-        );
-
       case 'calibration':
-        return (
-          <CalibrationScreen
-            locks={calibrationLocks}
-            isCalibrating={isCalibrating}
-            onRecalibrate={requestCalibration}
-            onContinue={() => {
-              resetTutorialProgress();
-              setGamePhase('tutorial');
-            }}
-            onSkip={() => {
-              resetTutorialProgress();
-              setGamePhase('tutorial');
-            }}
-          >
-            {renderLiveStage()}
-          </CalibrationScreen>
-        );
-
       case 'tutorial':
-        return (
-          <TutorialScreen
-            beatsCompleted={tutorialBeatsCompleted}
-            beatsTarget={tutorialBeatsTarget}
-            laneConfirmed={tutorialLaneConfirmed}
-            lanes={lanes}
-            onStartJam={startJam}
-          >
-            {renderLiveStage()}
-          </TutorialScreen>
-        );
-
       case 'jam':
         return (
-          <JamScreen
-            onToggleSession={handleToggleSession}
-            arrangement={loopArrangement}
-            sectionCallout={loopArrangement.callout}
-            nextSectionCallout={
-              loopArrangement.nextSection
-                ? loopArrangement.nextSection === 'solo' && loopArrangement.nextFocusZone
-                  ? `Next SOLO ${loopArrangement.nextFocusZone.toUpperCase()}`
-                  : `Next ${loopArrangement.nextSection}`
-                : null
-            }
-            countdownSecond={countdownUrgentSecond}
+          <div
+            className={`jam-hero-live-shell jam-hero-live-shell--${gamePhase === 'jam' ? 'jam' : 'preview'}`}
           >
-            {renderLiveStage()}
-          </JamScreen>
+            <div className="jam-hero-live-shell__stage">
+              {renderLiveStage()}
+            </div>
+            <div className="jam-hero-live-shell__feedback">
+              <StageLaneOverlay
+                activeZones={gamePhase === 'jam' ? loopArrangement.activeZones : ALL_ACTIVE_ZONES}
+              />
+              {gamePhase === 'jam' ? <TimingCallout /> : null}
+            </div>
+            <div className="jam-hero-live-shell__overlay">{renderJamHeroLiveOverlay()}</div>
+          </div>
         );
 
       case 'results':

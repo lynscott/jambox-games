@@ -3,7 +3,8 @@
    ============================================ */
 
 .app-shell {
-  min-height: 100%;
+  min-height: 100dvh;
+  height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr;
   background: var(--na-black);
@@ -69,12 +70,88 @@
 /* --- Jam Screen --- */
 
 .jam-screen {
+  min-height: 0;
+  width: 100%;
   height: 100%;
   display: grid;
   grid-template-rows: auto 1fr auto;
   background: var(--na-black);
   position: relative;
   overflow: hidden;
+  place-items: stretch;
+  justify-items: stretch;
+  padding: 0;
+}
+
+.jam-hero-live-shell {
+  position: relative;
+  min-height: 100dvh;
+  width: 100%;
+  background: var(--na-black);
+  overflow: hidden;
+}
+
+.jam-hero-live-shell__stage {
+  position: absolute;
+  inset: 0;
+}
+
+.jam-hero-live-shell--preview .jam-hero-live-shell__stage {
+  opacity: 0.42;
+}
+
+.jam-hero-live-shell__overlay {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+}
+
+.jam-hero-live-shell__feedback {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.stage-lane-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.stage-lane-overlay__lane {
+  position: relative;
+  border-left: 2px solid rgba(124, 77, 255, 0.48);
+  border-right: 2px solid rgba(124, 77, 255, 0.48);
+  box-shadow:
+    inset 0 0 28px rgba(124, 77, 255, 0.08),
+    inset 0 0 42px rgba(0, 229, 255, 0.04);
+}
+
+.stage-lane-overlay__lane:first-child {
+  border-left: none;
+}
+
+.stage-lane-overlay__lane:last-child {
+  border-right: none;
+}
+
+.stage-lane-overlay__lane--inactive {
+  opacity: 0.35;
+}
+
+.jam-hero-live-shell__overlay > .phase-screen,
+.jam-hero-live-shell__overlay > .jam-screen {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(124, 77, 255, 0.18), transparent 45%),
+    radial-gradient(circle at 80% 100%, rgba(0, 229, 255, 0.12), transparent 45%),
+    transparent;
+}
+
+.jam-hero-live-shell__overlay > .jam-screen {
+  height: 100dvh;
 }
 
 /* --- Top HUD --- */
@@ -368,6 +445,7 @@
 
 .jam-stage {
   position: relative;
+  min-height: 0;
   overflow: hidden;
   background: var(--na-black);
 }
@@ -399,9 +477,15 @@
   background: transparent;
 }
 
+.jam-stage .camera-video-host {
+  position: absolute;
+  inset: 0;
+}
+
 .jam-stage .camera-video {
   width: 100%;
   height: 100%;
+  display: block;
   object-fit: cover;
 }
 
@@ -411,6 +495,7 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
+  z-index: 1;
 }
 
 /* --- Lane Bar --- */
@@ -704,10 +789,17 @@
   background: transparent;
 }
 
+.phase-live-preview .camera-video-host,
+.permissions-preview .camera-video-host {
+  position: absolute;
+  inset: 0;
+}
+
 .phase-live-preview .camera-video,
 .permissions-preview .camera-video {
   width: 100%;
   height: 100%;
+  display: block;
   object-fit: cover;
 }
 

@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import type { LoopArrangement } from '../../game/arrangement';
 import { TopHUD } from '../jam/TopHUD';
 import { LaneBar } from '../jam/LaneBar';
-import { TimingCallout } from '../jam/TimingCallout';
 import { GearMenu } from '../jam/GearMenu';
 
 interface JamScreenProps {
@@ -32,7 +31,7 @@ export function JamScreen({
   ) : null;
 
   return (
-    <div className="jam-screen">
+    <section className="phase-screen jam-screen" aria-label="Jam Screen">
       <TopHUD sectionCallout={sectionCallout} nextSectionCallout={nextSectionCallout} />
 
       {sectionPreview}
@@ -48,11 +47,10 @@ export function JamScreen({
             {countdownSecond}
           </div>
         ) : null}
-        <TimingCallout />
         <GearMenu onToggleSession={onToggleSession} />
       </div>
 
       <LaneBar lanePlayable={arrangement.activeZones} roleStates={arrangement.roleStates} />
-    </div>
+    </section>
   );
 }

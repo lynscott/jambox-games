@@ -40,4 +40,21 @@ describe('JamScreen', () => {
     expect(screen.getAllByText('Next solo').length).toBe(2);
     expect(screen.queryByText('Loop Track')).not.toBeInTheDocument();
   });
+
+  it('uses the full-screen phase shell so the live stage keeps visible space during jam', () => {
+    render(
+      <JamScreen
+        onToggleSession={vi.fn()}
+        arrangement={arrangement}
+        sectionCallout={arrangement.callout}
+        nextSectionCallout="Next solo"
+        countdownSecond={null}
+      >
+        <div>stage</div>
+      </JamScreen>,
+    );
+
+    const jamScreen = screen.getAllByLabelText('Jam Screen')[0];
+    expect(jamScreen.className).toContain('phase-screen');
+  });
 });

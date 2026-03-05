@@ -93,4 +93,13 @@ describe('App home flow', () => {
     expect(screen.getByRole('heading', { name: /lyrics challenge setup/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /start lyrics mode/i })).toBeInTheDocument();
   });
+
+  it('ignores phone controller query params on desktop-like browsers', () => {
+    window.history.replaceState({}, '', '/?mode=phone&lobby=AB12CD&player=1');
+
+    render(<App />);
+
+    expect(screen.getByRole('heading', { level: 1, name: /lobby \+ phone pairing/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/phone player screen/i)).not.toBeInTheDocument();
+  });
 });

@@ -217,3 +217,13 @@ Original prompt: checkout the changes we made to improve the UI below. we implem
     - `output/review-section-cues/shot-0.png`
     - `output/review-section-cues/state-0.json`
     - no console/page errors reported by the Playwright client
+
+## Jam Camera Carry-Over Fix
+- Root-cause evidence: calibration/tutorial use full-screen phase shells with absolute live preview layers, but `JamScreen` was mounted in a plain `.jam-screen` container whose stage row could collapse because `.jam-stage` only contained absolutely positioned camera/overlay children.
+- Implemented fix:
+  - `src/components/screens/JamScreen.tsx` now uses a labeled `section` with `phase-screen jam-screen` so jam inherits the full-screen camera shell semantics.
+  - `src/App.css` now gives `.app-shell` a definite viewport height and hardens `.jam-screen` / `.jam-stage` sizing so the stage row keeps real space during jam.
+- Verification:
+  - `npm test -- src/components/screens/JamScreen.test.tsx src/App.home-flow.test.tsx`
+  - `npm run build`
+- Follow-up: live browser confirmation on the laptop is still recommended because local CI cannot validate the physical webcam stream.

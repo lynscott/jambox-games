@@ -12,6 +12,7 @@ let sharedStream: MediaStream | null = null;
 let pendingStream: Promise<MediaStream> | null = null;
 let activeConsumers = 0;
 let releaseTimer: number | null = null;
+let sharedVideoElement: HTMLVideoElement | null = null;
 
 function clearReleaseTimer() {
   if (releaseTimer !== null) {
@@ -74,20 +75,61 @@ async function acquireSharedStream(): Promise<MediaStream> {
   return pendingStream;
 }
 
+function getSharedVideoElement() {
+  if (sharedVideoElement) {
+    return sharedVideoElement;
+  }
+
+  const video = document.createElement('video');
+  video.className = 'camera-video';
+  video.autoplay = true;
+  video.muted = true;
+  video.playsInline = true;
+  sharedVideoElement = video;
+  return video;
+}
+
 export function __resetCameraViewSharedStateForTests() {
   clearReleaseTimer();
   if (sharedStream) {
     sharedStream.getTracks().forEach((track) => track.stop());
   }
+  if (sharedVideoElement) {
+    sharedVideoElement.pause();
+    sharedVideoElement.srcObject = null;
+    sharedVideoElement.remove();
+  }
   sharedStream = null;
   pendingStream = null;
   activeConsumers = 0;
+  sharedVideoElement = null;
 }
 
 export function CameraView({ isRunning, children, onVideoElementChange }: CameraViewProps) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const hasConsumerRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const video = getSharedVideoElement();
+    if (video.parentElement !== container) {
+      container.innerHTML = '';
+      container.appendChild(video);
+    }
+
+    onVideoElementChange?.(video);
+
+    return () => {
+      if (video.parentElement === container) {
+        container.removeChild(video);
+      }
+    };
+  }, [onVideoElementChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,20 +155,18 @@ export function CameraView({ isRunning, children, onVideoElementChange }: Camera
         }
         setErrorMessage(null);
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-          if (cancelled) {
-            return;
-          }
-          onVideoElementChange?.(videoRef.current);
+        const video = getSharedVideoElement();
+        video.srcObject = stream;
+        await video.play();
+        if (cancelled) {
+          return;
         }
+        onVideoElementChange?.(video);
       } catch {
         if (hasConsumerRef.current) {
           releaseStreamConsumer();
           hasConsumerRef.current = false;
         }
-        onVideoElementChange?.(null);
         setErrorMessage('Unable to access webcam. Check permissions and reload.');
       }
     };
@@ -135,7 +175,6 @@ export function CameraView({ isRunning, children, onVideoElementChange }: Camera
 
     return () => {
       cancelled = true;
-      onVideoElementChange?.(null);
       if (hasConsumerRef.current) {
         releaseStreamConsumer();
         hasConsumerRef.current = false;
@@ -146,8 +185,8 @@ export function CameraView({ isRunning, children, onVideoElementChange }: Camera
   return (
     <section className="camera-view" aria-label="Camera View">
       {errorMessage ? <p className="camera-error">{errorMessage}</p> : null}
-      <video ref={videoRef} className="camera-video" autoPlay muted playsInline />
-      {children ? children(videoRef.current) : null}
+      <div ref={containerRef} className="camera-video-host" />
+      {children ? children(sharedVideoElement) : null}
     </section>
   );
 }
